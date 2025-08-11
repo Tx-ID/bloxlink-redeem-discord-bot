@@ -11,6 +11,8 @@ export default {
     CODES_FILENAME: z.coerce.string().default("codes.txt").parse(process.env.CODES_FILENAME),
     ROBLOX_BADGE_ID: z.coerce.number().int().nullable().parse(process.env.ROBLOX_BADGE_ID),
 
+    BLOXLINK_API_KEY: z.coerce.string().nullable().parse(process.env.BLOXLINK_API_KEY),
+
     BLOXLINK_API_BASE_URL: z.coerce.string().default("https://api.blox.link/v4/").parse(process.env.BLOXLINK_API_BASE_URL),
     // ROBLOX_API_BASE_URL: z.coerce.string().default("https://roproxy.com").parse(process.env.ROBLOX_API_BASE_URL),
     
