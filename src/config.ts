@@ -1,8 +1,7 @@
-import moment from 'moment-timezone';
 
 import * as z from "zod";
 import dotenv from 'dotenv';
-dotenv.config();
+dotenv.config({quiet: true});
 
 export default {
 
@@ -18,5 +17,7 @@ export default {
 
     BLOXLINK_API_KEY: process.env.BLOXLINK_API_KEY ? z.coerce.string().nullable().parse(process.env.BLOXLINK_API_KEY) : null,
     BLOXLINK_API_BASE_URL: z.coerce.string().default("https://api.blox.link/v4/").parse(process.env.BLOXLINK_API_BASE_URL),
+
+    PORT: process.env.PORT ?? 5478,
     
 };
