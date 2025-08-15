@@ -5,7 +5,8 @@ dotenv.config({quiet: true});
 
 export default {
 
-    DISCORD_BOT_TOKEN: process.env.DISCORD_BOT_TOKEN ? z.coerce.string().nullable().parse(process.env.DISCORD_BOT_TOKEN) : null,
+    DISCORD_BOT_TOKEN: process.env.DISCORD_BOT_TOKEN,
+    DISCORD_BOT_CLIENT_ID: process.env.DISCORD_BOT_CLIENT_ID,
 
     DEADLINE_ACTIVE: z.coerce.boolean({error: "Invalid type for: DEADLINE_ACTIVE"}).default(false).parse(process.env.DEADLINE_ACTIVE),
     DEADLINE_UNIX: process.env.DEADLINE_UNIX ? z.coerce.date({error: "Invalid type for: DEADLINE_UNIX"}).nullable().parse(process.env.DEADLINE_UNIX) : null,
