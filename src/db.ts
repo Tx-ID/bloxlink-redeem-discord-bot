@@ -11,39 +11,52 @@ type ClaimData = {
     CodeUsed: string,
 };
 
+type ElibilityUserData = {
+    UserId: number,
+    EligibleList: number[],
+};
+
+type ClaimUserData = {
+    UserId: number,
+    ClaimList: ClaimData[],
+}
+
 type Data = {
-    Eligibilities: Map<number, Map<number, boolean>>, // {[UserId]: {[Amount]: true}}
-    Claims: Map<number, ClaimData[]>, // {[UserId]: ClaimData[]}
+    Eligibilities: ElibilityUserData[],
+    Claims: ClaimUserData[],
 };
 
 let db: Low<Data>
 
 export async function getDB() {
     if (!db) {
-        const defaultData: Data = {Eligibilities: new Map(), Claims: new Map()};
+        const defaultData: Data = {Eligibilities: [], Claims: []};
         db = await JSONFilePreset<Data>(config.DB_FILENAME, defaultData);
         await db.read();
     }
     return db;
 };
 
+
+//
 export async function getUserIdEligibility(userId: number) {
     const db = await getDB();
-    const get = db.data.Eligibilities.get(userId)
-    return get ? get.keys().toArray() : [];
+    const get = db.data.Eligibilities.find(userdata => userdata.UserId === userId);
+    return get ? get.EligibleList : [];
 }
 
 export async function getUserIdClaims(userId: number) {
     const db = await getDB();
-    return db.data.Claims.get(userId) ?? [];
+    const get = db.data.Claims.find(userdata => userdata.UserId === userId);
+    return get ? get.ClaimList : [];
 }
 
 export async function getClaimedCodes() {
     const db = await getDB();
     const list: string[] = [];
 
-    db.data.Claims.values().forEach((datas) => {
-        datas.forEach(data => list.push(data.CodeUsed));
+    db.data.Claims.forEach((userdata) => {
+        userdata.ClaimList.forEach(data => list.push(data.CodeUsed));
     });
     return list;
 }
@@ -57,4 +70,83 @@ export async function getUnclaimedCodesByAmount() {
         unclaimed.set(amount, list);
     });
     return unclaimed;
+}
+
+
+//
+export async function setUserIdEligible(userId: number, amount: number) {
+    const db = await getDB();
+
+    // const get_map = db.data.Eligibilities.get(String(userId)) ?? new Map();
+    // get_map.set(amount, true);
+    // db.data.Eligibilities.set(String(userId), get_map);
+
+    let index
+    let get = db.data.Eligibilities.find((value, i) => {
+        const ok = value.UserId === userId;
+        if (ok) {
+            index = i - 1;
+        }
+        return ok;
+    });
+    if (get) {
+        if (get.EligibleList.includes(amount))
+            return;
+    } else {
+        get = {
+            UserId: userId,
+            EligibleList: []
+        };
+    }
+
+    get.EligibleList.push(amount);
+    if (index && get) {
+        db.data.Eligibilities[index] = get;
+    } else {
+        db.data.Eligibilities.push(get);
+    }
+    await db.write();
+}
+
+export async function addClaimData(userId: number, Amount: number, Code: string) {
+    const db = await getDB();
+
+    // const get_list = db.data.Claims.get(String(userId)) ?? [];
+    // get_list.push({
+    //     UserId: userId,
+    //     Timestamp: Date.now(),
+    //     Amount,
+    //     CodeUsed: Code,
+    // });
+    // db.data.Claims.set(String(userId), get_list);
+
+    let index
+    let get = db.data.Claims.find((value, i) => {
+        const ok = value.UserId === userId;
+        if (ok) {
+            index = i - 1;
+        }
+        return ok;
+    });
+    if (get) {
+        
+    } else {
+        get = {
+            UserId: userId,
+            ClaimList: []
+        };
+    }
+
+    get.ClaimList.push({
+        UserId: userId,
+        Timestamp: Date.now(),
+        Amount,
+        CodeUsed: Code,
+    });
+    if (index && get) {
+        db.data.Claims[index] = get;
+    } else {
+        db.data.Claims.push(get);
+    }
+    await db.write();
 }

@@ -3,7 +3,7 @@ import config from "./config";
 import express, {type Express} from "express";
 import { StatusCodes } from 'http-status-codes';
 
-import { getUserIdClaims, getUserIdEligibility, getUnclaimedCodesByAmount } from "./db";
+import { getUserIdClaims, getUserIdEligibility, getUnclaimedCodesByAmount, setUserIdEligible, addClaimData } from "./db";
 
 import { readCodes } from "./codes";
 const codesByAmount = readCodes();
@@ -11,7 +11,7 @@ const codesByAmount = readCodes();
 
 //
 export class Server {
-    app: Express;
+    private app: Express | undefined;
 
     constructor() {
         this.initialize();
@@ -22,7 +22,10 @@ export class Server {
         app.use(express.json());
 
         app.post('/set-eligibility', async (req, res, next) => {
-            if (req.headers.authorization !== "Bearer ilovelilik") {
+            if (!config.BEARER_KEY)
+                return res.status(StatusCodes.UNAUTHORIZED).json({error: "Unauthorized, the devs are missing something."});
+
+            if (req.headers.authorization !== `Bearer ${config.BEARER_KEY}`) {
                 return res.status(StatusCodes.UNAUTHORIZED).json({error: "Unauthorized"});
             }
 
@@ -48,6 +51,13 @@ export class Server {
                 if (unclaimed.length <= 0) {
                     return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({message: "Abis woy kodenya."});
                 }
+
+                const rand_code = unclaimed.at(
+                    Math.floor(Math.random() * unclaimed.length)
+                );
+
+                await setUserIdEligible(userId, amount);
+                await addClaimData(userId, amount, rand_code!)
 
                 return res.status(StatusCodes.OK).json({message: "OK"});
 
