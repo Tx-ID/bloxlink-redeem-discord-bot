@@ -11,7 +11,7 @@ export default {
     DEADLINE_ACTIVE: z.coerce.boolean({error: "Invalid type for: DEADLINE_ACTIVE"}).default(false).parse(process.env.DEADLINE_ACTIVE),
     DEADLINE_UNIX: process.env.DEADLINE_UNIX ? z.coerce.date({error: "Invalid type for: DEADLINE_UNIX"}).nullable().parse(process.env.DEADLINE_UNIX) : null,
 
-    DB_FILENAME: z.coerce.string().default("dbs/db.json").parse(process.env.DB_FILENAME),
+    DB_FILENAME: z.coerce.string().default("db.json").parse(process.env.DB_FILENAME),
     CODES_FOLDERNAME: process.env.CODES_FOLDERNAME !== "" ? process.env.CODES_FOLDERNAME : "codes",
     
     ROBLOX_BADGE_ID: process.env.ROBLOX_BADGE_ID ? z.coerce.number({error: "Invalid type for: ROBLOX_BADGE_ID"}).nullable().parse(process.env.ROBLOX_BADGE_ID) : null,

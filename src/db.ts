@@ -1,7 +1,10 @@
 import { JSONFilePreset } from 'lowdb/node';
 import type { Low } from 'lowdb';
+import fs from 'fs/promises';
+
 import config from "./config";
 import { readCodes } from './codes';
+import path from 'path';
 const codesByAmount = readCodes();
 
 type ClaimData = {
@@ -30,8 +33,10 @@ let db: Low<Data>
 
 export async function getDB() {
     if (!db) {
+        await fs.mkdir('dbs', {recursive: true});
+
         const defaultData: Data = {Eligibilities: [], Claims: []};
-        db = await JSONFilePreset<Data>(config.DB_FILENAME, defaultData);
+        db = await JSONFilePreset<Data>(`dbs/${config.DB_FILENAME}`, defaultData);
         await db.read();
     }
     return db;
