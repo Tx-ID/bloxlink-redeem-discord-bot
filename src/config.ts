@@ -12,7 +12,7 @@ export default {
     DEADLINE_UNIX: process.env.DEADLINE_UNIX ? z.coerce.date({error: "Invalid type for: DEADLINE_UNIX"}).nullable().parse(process.env.DEADLINE_UNIX) : null,
 
     DB_FILENAME: z.coerce.string().default("db.json").parse(process.env.DB_FILENAME),
-    CODES_FOLDERNAME: process.env.CODES_FOLDERNAME !== "" ? process.env.CODES_FOLDERNAME : "codes",
+    CODES_FOLDERNAME: process.env.CODES_FOLDERNAME !== "" ? process.env.CODES_FOLDERNAME : "testcodes",
     
     ROBLOX_BADGE_ID: process.env.ROBLOX_BADGE_ID ? z.coerce.number({error: "Invalid type for: ROBLOX_BADGE_ID"}).nullable().parse(process.env.ROBLOX_BADGE_ID) : null,
 
