@@ -32,7 +32,6 @@ async function execute(interaction: Interaction) {
 
     const claims = await getUserIdClaims(Number(bloxlink_data.robloxID));
     const eligibilities = await getUserIdEligibility(Number(bloxlink_data.robloxID));
-    const missing_amount = eligibilities.filter((amount) => !claims.find((claim) => claim.Amount === amount));
 
     try {
         const lines = [
@@ -40,6 +39,10 @@ async function execute(interaction: Interaction) {
             "",
             eligibilities.length <= 0 ? "**You don't have any redeemable rewards.**" : "Your rewards:"
         ];
+
+        claims.forEach(data => {
+            lines.push(`- **${data.CodeUsed}**`);
+        });
 
         await interaction.user.send({
             embeds: [{

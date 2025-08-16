@@ -1,22 +1,24 @@
 import csvParser from "csv-parser";
 import fs from 'fs';
+import * as readline from 'readline';
 import config from "./config";
 
 const availableCodeTypes = [5000, 10000, 50000, 100000];
 const mainDir = config.CODES_FOLDERNAME;
 
-function rawr(filename: any): Promise<string[]> {
-    const results: any[] = [];
+function readLines(filename: string): Promise<string[]> {
+    const results: string[] = [];
     return new Promise((resolve, reject) => {
-        fs.createReadStream(`${mainDir}/${String(filename)}.csv`)
-            .pipe(csvParser())
-            .on('data', (data: {[x: string]: string}) => {
-                results.push(Object.values(data)[0]);
-            })
-            .on('end', () => {
-                // console.log(results[0], results[1]);
-                resolve(results);
-            });
+        const stream = fs.createReadStream(filename, { encoding: 'utf-8' });
+        const rl = readline.createInterface({ input: stream });
+        rl.on('line', line => {
+            if (line !== "" && line.trim() !== "")
+                results.push(line);
+        });
+        rl.on('close', () => {
+            resolve(results);
+        });
+        rl.on('error', err => reject(err));
     });
 }
 
@@ -26,7 +28,7 @@ export function readCodes() {
     if (!compiled) {
         compiled = new Map();
         availableCodeTypes.forEach(async (n) => {
-            const list = await rawr(n);
+            const list = await readLines(`${mainDir}/${String(n)}.csv`);
             compiled.set(n, list);
         });
     }
