@@ -9,11 +9,17 @@ const command = new SlashCommandBuilder()
 async function execute(interaction: Interaction) {
     if (!interaction.isChatInputCommand()) return;
 
-    await interaction.reply({
-        flags: [MessageFlags.Ephemeral],
-        content: "Success.",
-    });
-    await interaction.user.send("Pong!");
+    await interaction.deferReply({flags: [MessageFlags.Ephemeral]});
+    try {
+        await interaction.user.send("Pong!");
+        await interaction.editReply({
+            content: "Success.",
+        });
+    } catch {
+        await interaction.editReply({
+            content: "Failed to send direct-message, please allow direct messages from this server.",
+        });
+    }
 }
 
 export { command, execute };

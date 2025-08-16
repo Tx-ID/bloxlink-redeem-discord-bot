@@ -20,11 +20,15 @@ function rawr(filename: any): Promise<string[]> {
     });
 }
 
+let compiled: Map<number, string[]>
+
 export function readCodes() {
-    const compiled: Map<number, string[]> = new Map();
-    availableCodeTypes.forEach(async (n) => {
-        const list = await rawr(n);
-        compiled.set(n, list);
-    });
+    if (!compiled) {
+        compiled = new Map();
+        availableCodeTypes.forEach(async (n) => {
+            const list = await rawr(n);
+            compiled.set(n, list);
+        });
+    }
     return compiled;
 }

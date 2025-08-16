@@ -1,14 +1,11 @@
 import { parseArgs } from "util";
 
 import * as z from "zod";
-import moment from "moment-timezone";
 import config from "./config";
 import express from "express";
 
 import { Bot as bot } from './bot';
 import { getDB } from './db';
-import { readCodes } from './codes';
-const codesByAmount = readCodes();
 
 
 //
