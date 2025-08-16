@@ -18,7 +18,6 @@ export class SimpleCache {
 
         if (ttl && ttl > 0) {
             entry.expiresAt = Date.now() + ttl;
-            // Remove entry from cache after ttl ms
             entry.timeout = setTimeout(() => {
                 this.cache.delete(key);
             }, ttl);
@@ -29,7 +28,6 @@ export class SimpleCache {
 
     get(key: string): any | undefined {
         const entry = this.cache.get(key);
-        // If entry is expired, remove and return undefined
         if (entry && entry.expiresAt && entry.expiresAt < Date.now()) {
             this.cache.delete(key);
             return undefined;

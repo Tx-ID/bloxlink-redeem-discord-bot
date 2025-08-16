@@ -1,11 +1,7 @@
 import { parseArgs } from "util";
-
-import * as z from "zod";
 import config from "./config";
-import express from "express";
-
 import { Bot as bot } from './bot';
-import { getDB } from './db';
+import { Server } from "./server";
 
 
 //
@@ -27,20 +23,9 @@ const { values, positionals } = parseArgs({
 
 
 //
+const server = new Server();
+
 let DiscordBot: bot;
-
-const app = express();
-app.use(express.json());
-
-app.post('/set-eligibility', (req, res, next) => {
-
-});
-app.listen(config.PORT, () => {
-    console.log(`Server running on port ${config.PORT}`);
-});
-
-
-//
 if (config.DISCORD_BOT_TOKEN && config.DISCORD_BOT_CLIENT_ID) {
     DiscordBot = new bot( config.DISCORD_BOT_TOKEN, config.DISCORD_BOT_CLIENT_ID );
 
