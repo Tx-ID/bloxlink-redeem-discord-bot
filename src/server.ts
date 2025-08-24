@@ -36,6 +36,7 @@ export class Server {
             try {
                 const userId = z.int({error: "Invalid UserId"}).positive({error: "UserId must be positive."}).parse(body.UserId);
                 const amount = z.int({error: "Invalid Amount"}).positive({error: "Amount must be positive"}).parse(body.Amount);
+                const dry = z.coerce.boolean().nullable().parse(body.dry ?? null);
 
                 if (!codesByAmount.keys().toArray().includes(amount))
                     return res.status(StatusCodes.BAD_REQUEST).json({error: "Invalid Amount"});
@@ -54,6 +55,10 @@ export class Server {
                 const unclaimed = (await getUnclaimedCodesByAmount()).get(amount)!;
                 if (unclaimed.length <= 0) {
                     return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({message: "Abis woy kodenya."});
+                }
+
+                if (dry === true) {
+                    return res.status(StatusCodes.OK).json({message: "OK (dry-run)"});
                 }
 
                 const rand_code = unclaimed.at(
