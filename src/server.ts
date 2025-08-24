@@ -3,7 +3,7 @@ import config from "./config";
 import express, {type Express} from "express";
 import { StatusCodes } from 'http-status-codes';
 
-import { getUserIdClaims, getUserIdEligibility, getUnclaimedCodesByAmount, setUserIdEligible, addClaimData } from "./db";
+import { getUserIdClaims, getUserIdEligibility, getUnclaimedCodesByAmount, setUserIdEligible, addClaimData, removeUserIdFromEligible, removeClaimData } from "./db";
 
 import { readCodes } from "./codes";
 const codesByAmount = readCodes();
@@ -20,6 +20,31 @@ export class Server {
     async initialize() {
         const app = express();
         app.use(express.json());
+
+        app.delete('/delete-eligibility', async (req, res, next) => { // dev only
+            if (!config.BEARER_KEY)
+                return res.status(StatusCodes.UNAUTHORIZED).json({error: "Unauthorized, the devs are missing something."});
+
+            if (req.headers.authorization !== `Bearer ${config.BEARER_KEY}`) {
+                return res.status(StatusCodes.UNAUTHORIZED).json({error: "Unauthorized"});
+            }
+
+            const body = req.body;
+            if (!body)
+                return res.status(StatusCodes.NOT_FOUND).json({error: "Missing body"});
+
+            try {
+                const userId = z.int({error: "Invalid UserId"}).positive({error: "UserId must be positive."}).parse(body.UserId);
+                // const amount = z.int({error: "Invalid Amount"}).positive({error: "Amount must be positive"}).nullable().parse(body.Amount ?? null);
+                // const dry = z.coerce.boolean().nullable().parse(body.dry ?? null);
+
+                const removedFromEligible = await removeUserIdFromEligible(userId, null);
+                const removedFromClaimData = await removeClaimData(userId, null);
+
+                return res.status(StatusCodes.OK).json({message: "OK", data: {removedFromClaimData, removedFromEligible}});
+
+            } catch {}
+        });
 
         app.post('/set-eligibility', async (req, res, next) => {
             if (!config.BEARER_KEY)

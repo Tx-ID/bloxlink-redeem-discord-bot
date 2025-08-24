@@ -19,7 +19,7 @@ async function execute(interaction: Interaction) {
     if (!bloxlink_data || !bloxlink_data.robloxID) {
         await interaction.editReply({
             // content: "Unable to process airdrop. You are not linked to bloxlink.",
-            content: "Maaf anda belum memenuhi syarat untuk melakukan claim airdrop. Harap untuk menghubungkan akun Roblox anda ke bot Bloxlink sebagai verifikasi."
+            content: "Maaf anda belum memenuhi syarat untuk melakukan claim airdrop. Harap untuk menghubungkan akun Roblox anda ke bot Bloxlink untuk verifikasi."
         });
         return;
     }
@@ -40,7 +40,7 @@ async function execute(interaction: Interaction) {
             // `Logged in as [@${roblox_data.name}](https://www.roblox.com/users/${roblox_data.id}/profile).`,
             // "",
             // eligibilities.length <= 0 ? "**You don't have any redeemable rewards.**" : "Your rewards:"
-            "Maaf anda belum bisa melakukan claim airdrop.",
+            "Maaf anda belum mendapatkan airdrop.",
         ] : [
             "# 🎉 Selamat!",
             `## Kamu berhasil mendapatkan __Rp ${new Intl.NumberFormat("id").format(eligibilities[0]!)}__ GoPay Coins dari kolaborasi spesial Indo Voice x GoPay Airdrop Event! 🎊`,

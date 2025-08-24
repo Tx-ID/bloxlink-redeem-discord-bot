@@ -82,10 +82,6 @@ export async function getUnclaimedCodesByAmount() {
 export async function setUserIdEligible(userId: number, amount: number) {
     const db = await getDB();
 
-    // const get_map = db.data.Eligibilities.get(String(userId)) ?? new Map();
-    // get_map.set(amount, true);
-    // db.data.Eligibilities.set(String(userId), get_map);
-
     let index
     let get = db.data.Eligibilities.find((value, i) => {
         const ok = value.UserId === userId;
@@ -113,17 +109,29 @@ export async function setUserIdEligible(userId: number, amount: number) {
     await db.write();
 }
 
-export async function addClaimData(userId: number, Amount: number, Code: string) {
+export async function removeUserIdFromEligible(userId: number, amounts: number[] | null) {
     const db = await getDB();
 
-    // const get_list = db.data.Claims.get(String(userId)) ?? [];
-    // get_list.push({
-    //     UserId: userId,
-    //     Timestamp: Date.now(),
-    //     Amount,
-    //     CodeUsed: Code,
-    // });
-    // db.data.Claims.set(String(userId), get_list);
+    const index = db.data.Eligibilities.findIndex(value => value.UserId === userId);
+    if (index === -1) {
+        return false;
+    }
+
+    if (amounts) {
+        const userEligibility = db.data.Eligibilities[index]!;
+        userEligibility.EligibleList = userEligibility.EligibleList.filter(
+            (v) => !amounts.includes(v)
+        );
+    } else {
+        db.data.Eligibilities.splice(index, 1);
+    }
+
+    await db.write();
+    return true;
+}
+
+export async function addClaimData(userId: number, Amount: number, Code: string) {
+    const db = await getDB();
 
     let index
     let get = db.data.Claims.find((value, i) => {
@@ -154,4 +162,25 @@ export async function addClaimData(userId: number, Amount: number, Code: string)
         db.data.Claims.push(get);
     }
     await db.write();
+}
+
+export async function removeClaimData(userId: number, amounts: number[] | null) {
+    const db = await getDB();
+
+    const userClaimIndex = db.data.Claims.findIndex(claim => claim.UserId === userId);
+    if (userClaimIndex === -1) {
+        // console.log(`No claim data found for UserId: ${userId}. Nothing to remove.`);
+        return false;
+    }
+
+    if (!amounts) {
+        db.data.Claims.splice(userClaimIndex, 1);
+    } else {
+        const userClaim = db.data.Claims[userClaimIndex]!;
+        userClaim.ClaimList = userClaim.ClaimList.filter(
+            claimEntry => !amounts.includes(claimEntry.Amount)
+        );
+    }
+    await db.write();
+    return true;
 }
