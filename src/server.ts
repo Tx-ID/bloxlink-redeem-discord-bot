@@ -43,7 +43,12 @@ export class Server {
 
                 return res.status(StatusCodes.OK).json({message: "OK", data: {removedFromClaimData, removedFromEligible}});
 
-            } catch {}
+            } catch(err: any) {
+                if (err instanceof z.ZodError) {
+                    return res.status(StatusCodes.BAD_REQUEST).json({ error: err.issues.map(issue => issue.message).join(' | ') });
+                }
+                return res.status(StatusCodes.BAD_REQUEST).json({ error: err ? err?.message : String(err) });
+            }
         });
 
         app.post('/set-eligibility', async (req, res, next) => {
