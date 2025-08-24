@@ -43,8 +43,12 @@ export class Server {
                 const eligibilities = await getUserIdEligibility(Number(userId));
                 const assign_new_code = !eligibilities.includes(amount);
 
+                if (eligibilities.length >= 1) {
+                    return res.status(StatusCodes.BAD_REQUEST).json({message: "One use cannot have more than 1 redeem code."});
+                }
+
                 if (!assign_new_code) {
-                    return res.status(StatusCodes.OK).json({message: "This user already have the code for it."});
+                    return res.status(StatusCodes.BAD_REQUEST).json({message: "This user already have the code for it."});
                 }
 
                 const unclaimed = (await getUnclaimedCodesByAmount()).get(amount)!;
