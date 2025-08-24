@@ -14,10 +14,6 @@ async function execute(interaction: Interaction) {
     if (!interaction.isChatInputCommand()) return;
 
     await interaction.deferReply({flags: [MessageFlags.Ephemeral]});
-    await interaction.editReply({
-        content: "Bot sedang dalam proses perbaikan."
-    });
-    return;
 
     const bloxlink_data = await getRobloxFromDiscordId(interaction.guildId, interaction.user.id);
     if (!bloxlink_data || !bloxlink_data.robloxID) {
@@ -46,13 +42,22 @@ async function execute(interaction: Interaction) {
             // eligibilities.length <= 0 ? "**You don't have any redeemable rewards.**" : "Your rewards:"
             "Maaf anda belum bisa melakukan claim airdrop.",
         ] : [
-            "# 🎉 Selamat!\n\n\n🎟️ Kode Voucher: `<code>`\n📲 Tukarkan langsung di aplikasi GoPay!\n\n🔓 Cara Menukarkan Kode Voucher:\nStep 1: Buka aplikasi GoPay\nStep 2: Scroll ke bawah dan ketuk “Voucher Saya”\nStep 3: Pilih “Punya kode promo?”\nStep 4: Masukkan kode: `<code>` dan klik Tukar\nStep 5: Selesai! GoPay Coins kamu sudah masuk — cek di menu Riwayat Transaksi\n\n⚠️ Perlu diingat kode voucher hanya dapat diclaim satu kali. Oleh karena itu, jangan berikan kode ini kesiapapun!\n\n💡 Gunakan GoPay Coins kamu untuk transaksi lebih hemat dan seru di berbagai layanan!",
-            "## Kamu berhasil mendapatkan __Rp<nominal>__ GoPay Coins dari kolaborasi spesial Indo Voice x GoPay Airdrop Event! 🎊",
+            "# 🎉 Selamat!",
+            `## Kamu berhasil mendapatkan __Rp ${new Intl.NumberFormat("id").format(eligibilities[0]!)}__ GoPay Coins dari kolaborasi spesial Indo Voice x GoPay Airdrop Event! 🎊`,
+            "",
+            `🎟️ Kode Voucher: \`${claims[0]!.CodeUsed}\``,
+            "📲 Tukarkan langsung di aplikasi GoPay!",
+            "",
+            `🔓 Cara Menukarkan Kode Voucher:\nStep 1: Buka aplikasi GoPay\nStep 2: Scroll ke bawah dan ketuk “Voucher Saya”\nStep 3: Pilih “Punya kode promo?”\nStep 4: Masukkan kode: \`${claims[0]!.CodeUsed}\` dan klik Tukar\nStep 5: Selesai! GoPay Coins kamu sudah masuk — cek di menu Riwayat Transaksi`,
+            "",
+            `⚠️ Perlu diingat kode voucher hanya dapat diclaim satu kali. Oleh karena itu, jangan berikan kode ini kesiapapun!`,
+            "",
+            "💡 Gunakan GoPay Coins kamu untuk transaksi lebih hemat dan seru di berbagai layanan!",
         ];
 
-        claims.forEach(data => {
-            lines.push(`- **${data.CodeUsed}**`);
-        });
+        // claims.forEach(data => {
+        //     lines.push(`- **${data.CodeUsed}**`);
+        // });
 
         await interaction.user.send({
             tts: false,
@@ -64,7 +69,7 @@ async function execute(interaction: Interaction) {
                     "text": "Kode voucher akan hangus apabila tidak ditukarkan sebelum 10 September 2025."
                 },
                 "image": {
-                    "url": ""
+                    "url": "https://i.ibb.co.com/MyKP3mQy/Cara-tuker-voucher-gopay-coins.jpg"
                 },
             }]
         });
