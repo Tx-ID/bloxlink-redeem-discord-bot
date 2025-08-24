@@ -1,4 +1,4 @@
-import { ApplicationIntegrationType, InteractionContextType, MessageFlags, SlashCommandBuilder, type Interaction } from "discord.js";
+import { ApplicationIntegrationType, InteractionContextType, MessageFlags, MessagePayload, SlashCommandBuilder, type APIEmbed, type Interaction, type MessageCreateOptions } from "discord.js";
 
 import config from "../../config";
 import { getUnclaimedCodesByAmount, getUserIdClaims, getUserIdEligibility } from '../../db';
@@ -36,7 +36,7 @@ async function execute(interaction: Interaction) {
     const eligibilities = await getUserIdEligibility(Number(bloxlink_data.robloxID));
 
     try {
-        const lines = eligibilities.length <= 0 ? [
+        const lines = eligibilities.length < 1 ? [
             // `Logged in as [@${roblox_data.name}](https://www.roblox.com/users/${roblox_data.id}/profile).`,
             // "",
             // eligibilities.length <= 0 ? "**You don't have any redeemable rewards.**" : "Your rewards:"
@@ -55,24 +55,27 @@ async function execute(interaction: Interaction) {
             "💡 Gunakan GoPay Coins kamu untuk transaksi lebih hemat dan seru di berbagai layanan!",
         ];
 
-        // claims.forEach(data => {
-        //     lines.push(`- **${data.CodeUsed}**`);
-        // });
+        const embed: APIEmbed = {
+            title: "Indo Voice x Gopay Airdrop Event",
+            color: 3851227,
+            description: lines.join('\n'),
+        };
 
-        await interaction.user.send({
+        if (eligibilities.length >= 1) {
+            embed.footer = {
+                "text": "Kode voucher akan hangus apabila tidak ditukarkan sebelum 10 September 2025."
+            }
+            embed.image = {
+                "url": "https://i.ibb.co.com/MyKP3mQy/Cara-tuker-voucher-gopay-coins.jpg"
+            }
+        }
+
+        const payload: MessagePayload | MessageCreateOptions = {
             tts: false,
-            embeds: [{
-                title: "Indo Voice x Gopay Airdrop Event",
-                color: 3851227,
-                description: lines.join('\n'),
-                footer: {
-                    "text": "Kode voucher akan hangus apabila tidak ditukarkan sebelum 10 September 2025."
-                },
-                "image": {
-                    "url": "https://i.ibb.co.com/MyKP3mQy/Cara-tuker-voucher-gopay-coins.jpg"
-                },
-            }]
-        });
+            embeds: [embed]
+        };
+
+        await interaction.user.send(payload);
 
         await interaction.editReply({
             content: "Success. Please check your Direct Messages.",
