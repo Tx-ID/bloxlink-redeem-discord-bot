@@ -3,10 +3,18 @@ import config from "./config";
 import express, {type Express} from "express";
 import { StatusCodes } from 'http-status-codes';
 
-import { getUserIdClaims, getUserIdEligibility, getUnclaimedCodesByAmount, setUserIdEligible, addClaimData, removeUserIdFromEligible, removeClaimData } from "./db";
+import { getUserIdClaims, getUserIdEligibility, getUnclaimedCodesByAmount, setUserIdEligible, addClaimData, removeUserIdFromEligible, removeClaimData, getDB } from "./db";
 
 import { readCodes } from "./codes";
 const codesByAmount = readCodes();
+
+
+//
+function convertToCsv(arr: {}[]) {
+  const header = Object.keys(arr[0]!).join(',') + '\n';
+  const rows = arr.map(obj => Object.values(obj).join(',')).join('\n');
+  return header + rows;
+}
 
 
 //
@@ -48,6 +56,50 @@ export class Server {
                     return res.status(StatusCodes.BAD_REQUEST).json({ error: err.issues.map(issue => issue.message).join(' | ') });
                 }
                 return res.status(StatusCodes.BAD_REQUEST).json({ error: err ? err?.message : String(err) });
+            }
+        });
+
+        app.get(`/claim-list`, async (req, res, next) => {
+            if (!config.BEARER_KEY)
+                return res.status(StatusCodes.UNAUTHORIZED).json({error: "Unauthorized, the devs are missing something."});
+
+            if (req.headers.authorization !== `Bearer ${config.BEARER_KEY}`) {
+                return res.status(StatusCodes.UNAUTHORIZED).json({error: "Unauthorized"});
+            }
+
+            try {
+                const db = await getDB();
+                const list = db.data.Claims.reduce((prev, curr, index) => {
+                    const userId = curr.UserId;
+                    const claimData = curr.ClaimList[0];
+                    if (claimData) {
+                        prev.push({
+                            "Roblox UserId": userId,
+                            "Date Obtained": new Date(claimData.Timestamp).toISOString(),
+                            "Amount Get": claimData.Amount,
+                            "Code Used": claimData.CodeUsed,
+                        });
+                    }
+                    return prev;
+                }, [] as {"Roblox UserId": number, "Date Obtained": string, "Amount Get": number, "Code Used": string}[]);
+
+                if (list.length < 1) {
+                    return res.status(StatusCodes.OK).json({message: "Nothing found!"});
+                }
+
+                const now = new Date();
+                const year = now.getFullYear();
+                const month = String(now.getMonth() + 1).padStart(2, '0');
+                const day = String(now.getDate()).padStart(2, '0');
+                const filename = `USERS-${year}-${month}-${day}.csv`
+
+                const csvData = convertToCsv(list);
+                res.setHeader('Content-Type', 'text/csv');
+                res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+                res.send(csvData);
+
+            } catch(err: any) {
+                return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ error: err ? err?.message : String(err) });
             }
         });
 
