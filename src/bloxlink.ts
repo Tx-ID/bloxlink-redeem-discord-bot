@@ -30,8 +30,11 @@ export type LookupRobloxData = {
 }
 
 export async function getRobloxFromDiscordId(guildId: any, discordId: any): Promise<(LookupRobloxData | undefined)> {
-    const json = await bloxlinkREST.get(`/public/guilds/${guildId}/discord-to-roblox/${discordId}`);
-    if (json.status === 200) {
+    const json = await bloxlinkREST.get(`/public/guilds/${guildId}/discord-to-roblox/${discordId}`).catch(() => {
+        console.log(`[Bloxlink]: Failed to get roblox from discordId: ${discordId}`);
+        return null;
+    });
+    if (json && json.status === 200) {
         return json.data;
     }
 }
@@ -56,8 +59,11 @@ export async function getRobloxUserFromUserId(userId: any): Promise<RobloxData |
         return robloxUserCache.get(id);
     }
 
-    const json = await axios.get(`https://users.roblox.com/v1/users/${userId}`);
-    if (json.status === 200) {
+    const json = await axios.get(`https://users.roblox.com/v1/users/${userId}`).catch(() => {
+        console.log(`[Roblox]: Failed to get roblox user from userId: ${userId}`);
+        return null;
+    });
+    if (json && json.status === 200) {
         robloxUserCache.set(id, json.data);
         return json.data;
     }
