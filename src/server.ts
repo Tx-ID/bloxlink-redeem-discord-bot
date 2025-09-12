@@ -10,10 +10,45 @@ const codesByAmount = readCodes();
 
 
 //
-function convertToCsv(arr: {}[]) {
+function escapeCsvValue(value: any): string {
+  const str = String(value);
+  // Check if escaping is needed
+  if (/[",\n]/.test(str)) {
+    // Enclose in double quotes and double any existing quotes
+    return `"${str.replace(/"/g, '""')}"`;
+  }
+  return str;
+}
+
+function convertUserDataToCsv(arr: {}[]) {
   const header = Object.keys(arr[0]!).join(',') + '\n';
   const rows = arr.map(obj => Object.values(obj).join(',')).join('\n');
   return header + rows;
+}
+
+function convertArrayToCsv<T>(data: Map<any, Array<T>> | { [key: string | number]: Array<T> }): string {
+  const dataMap = data instanceof Map ? data : new Map(Object.entries(data));
+
+  if (dataMap.size === 0) {
+    return '';
+  }
+
+  const headers = Array.from(dataMap.keys().map(String));
+  const columns = Array.from(dataMap.values());
+
+  const numRows = columns.length > 0 ? Math.max(...columns.map(col => col.length)) : 0;
+  const headerRow = headers.map(escapeCsvValue).join(',');
+
+  const dataRows: string[] = [];
+  for (let i = 0; i < numRows; i++) {
+    const row = columns.map(col => {
+      const value = col[i] !== undefined && col[i] !== null ? col[i] : '';
+      return escapeCsvValue(value);
+    });
+    dataRows.push(row.join(','));
+  }
+
+  return [headerRow, ...dataRows].join('\n');
 }
 
 
@@ -59,6 +94,33 @@ export class Server {
             }
         });
 
+        app.get("/unclaimed-list", async (req, res, next) => {
+            if (!config.BEARER_KEY)
+                return res.status(StatusCodes.UNAUTHORIZED).json({error: "Unauthorized, the devs are missing something."});
+
+            if (req.headers.authorization !== `Bearer ${config.BEARER_KEY}`) {
+                return res.status(StatusCodes.UNAUTHORIZED).json({error: "Unauthorized"});
+            }
+
+            try {
+                const unclaimed = await getUnclaimedCodesByAmount();
+
+                const now = new Date();
+                const year = now.getFullYear();
+                const month = String(now.getMonth() + 1).padStart(2, '0');
+                const day = String(now.getDate()).padStart(2, '0');
+                const filename = `UNCLAIMED-${year}-${month}-${day}.csv`
+
+                const csvData = convertArrayToCsv(unclaimed);
+                res.setHeader('Content-Type', 'text/csv');
+                res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+                res.send(csvData);
+
+            } catch(err: any) {
+                return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ error: err ? err?.message : String(err) });
+            }
+        });
+
         app.get(`/claim-list`, async (req, res, next) => {
             if (!config.BEARER_KEY)
                 return res.status(StatusCodes.UNAUTHORIZED).json({error: "Unauthorized, the devs are missing something."});
@@ -93,7 +155,7 @@ export class Server {
                 const day = String(now.getDate()).padStart(2, '0');
                 const filename = `USERS-${year}-${month}-${day}.csv`
 
-                const csvData = convertToCsv(list);
+                const csvData = convertUserDataToCsv(list);
                 res.setHeader('Content-Type', 'text/csv');
                 res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
                 res.send(csvData);
