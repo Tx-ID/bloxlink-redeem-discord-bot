@@ -36,6 +36,11 @@ async function execute(interaction: Interaction) {
     const eligibilities = await getUserIdEligibility(Number(bloxlink_data.robloxID));
 
     try {
+        let reward_type = "";
+        if (eligibilities.length > 0) {
+            reward_type = eligibilities[0]! === 5000 ? "GoPay Coins" : "Voucher Cashback GoPay"
+        }
+
         const lines = eligibilities.length < 1 ? [
             // `Logged in as [@${roblox_data.name}](https://www.roblox.com/users/${roblox_data.id}/profile).`,
             // "",
@@ -43,7 +48,7 @@ async function execute(interaction: Interaction) {
             "Maaf anda belum mendapatkan airdrop.",
         ] : [
             "# 🎉 Selamat!",
-            `## Kamu berhasil mendapatkan __Rp ${new Intl.NumberFormat("id").format(eligibilities[0]!)}__ GoPay Coins dari kolaborasi spesial Indo Voice x GoPay Airdrop Event! 🎊`,
+            `## Kamu berhasil mendapatkan __Rp ${new Intl.NumberFormat("id").format(eligibilities[0]!)}__ ${reward_type} dari kolaborasi spesial Indo Voice x GoPay Airdrop Event! 🎊`,
             "",
             `🎟️ Kode Voucher: \`${claims[0]!.CodeUsed}\``,
             "📲 Tukarkan langsung di aplikasi GoPay!",
@@ -63,7 +68,7 @@ async function execute(interaction: Interaction) {
 
         if (eligibilities.length >= 1) {
             embed.footer = {
-                "text": "Kode voucher akan hangus apabila tidak ditukarkan sebelum 10 September 2025."
+                "text": "Kode voucher akan hangus apabila tidak ditukarkan sebelum 31 November 2025."
             }
             embed.image = {
                 "url": "https://i.ibb.co.com/MyKP3mQy/Cara-tuker-voucher-gopay-coins.jpg"

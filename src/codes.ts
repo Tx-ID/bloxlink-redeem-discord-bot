@@ -3,7 +3,7 @@ import fs from 'fs';
 import * as readline from 'readline';
 import config from "./config";
 
-const availableCodeTypes = [5000, 10000, 50000, 100000];
+const availableCodeTypes = [5000, 10000];
 const mainDir = config.CODES_FOLDERNAME;
 
 function readLines(filename: string): Promise<string[]> {
