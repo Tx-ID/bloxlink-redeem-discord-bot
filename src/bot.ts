@@ -30,7 +30,7 @@ export class Bot {
 
     private commands: Map<
         string,
-        { command: SlashCommandBuilder; execute: (interaction: Interaction) => void }
+        { command: SlashCommandBuilder; execute: (interaction: Interaction) => Promise<any> }
     > = new Map();
 
     constructor(token: string, client_id: string) {
@@ -78,24 +78,23 @@ export class Bot {
                     return;
                 }
 
-                try {
-                    await command.execute(interaction);
-                } catch (error) {
-                    console.error(error);
-                    if (interaction.replied || interaction.deferred) {
-                        await interaction.followUp({
-                            content:
-                                "There was an error while executing this command!",
-                            flags: MessageFlags.Ephemeral,
-                        });
-                    } else {
-                        await interaction.reply({
-                            content:
-                                "There was an error while executing this command!",
-                            flags: MessageFlags.Ephemeral,
-                        });
-                    }
-                }
+                command.execute(interaction)
+                    .catch((error) => {
+                        console.error(error);
+                        if (interaction.replied || interaction.deferred) {
+                            interaction.followUp({
+                                content:
+                                    "There was an error while executing this command!",
+                                flags: MessageFlags.Ephemeral,
+                            }).catch(() => {});
+                        } else {
+                            interaction.reply({
+                                content:
+                                    "There was an error while executing this command!",
+                                flags: MessageFlags.Ephemeral,
+                            }).catch(() => {});;
+                        }
+                    });
             }
         });
     }
