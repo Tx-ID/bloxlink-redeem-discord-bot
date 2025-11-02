@@ -80,15 +80,23 @@ async function execute(interaction: Interaction) {
             embeds: [embed]
         };
 
-        await interaction.user.send(payload);
-        await interaction.editReply({
-            content: "Success. Please check your Direct Messages.",
-        });
+        await interaction.user.send(payload)
+            .then(() => {
+                interaction.editReply({
+                    content: "Success. Please check your Direct Messages.",
+                }).catch(() => { console.log(`Interaction failed [3]`) });
+            
+            }).catch(() => {
+                interaction.editReply({
+                    content: "Failed to send direct-message, please allow direct messages from this server.",
+                }).catch(() => { console.log(`Interaction failed [4]`) });
+
+            });
 
     } catch {
-        await interaction.editReply({
+        interaction.editReply({
             content: "Failed to send direct-message, please allow direct messages from this server.",
-        });
+        }).catch(() => { console.log(`Interaction failed [5]`) });
 
     }
 }
