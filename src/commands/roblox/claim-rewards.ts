@@ -17,18 +17,18 @@ async function execute(interaction: Interaction) {
 
     const bloxlink_data = await getRobloxFromDiscordId(interaction.guildId, interaction.user.id);
     if (!bloxlink_data || !bloxlink_data.robloxID) {
-        await interaction.editReply({
+        interaction.editReply({
             // content: "Unable to process airdrop. You are not linked to bloxlink.",
             content: "Maaf anda belum memenuhi syarat untuk melakukan claim airdrop. Harap untuk menghubungkan akun Roblox anda ke bot Bloxlink untuk verifikasi."
-        });
+        }).catch(() => { console.log("Interaction failed [1]") });
         return;
     }
     const roblox_data = await getRobloxUserFromUserId(bloxlink_data.robloxID);
     if (!roblox_data) {
-        await interaction.editReply({
+        interaction.editReply({
             // content: "Unable to process airdrop. Invalid Roblox account.",
             content: "Maaf anda belum memenuhi syarat untuk melakukan claim airdrop. Akun Roblox anda tidak dapat diverifikasi."
-        });
+        }).catch(() => { console.log("Interaction failed [2]") });
         return;
     }
 
@@ -81,14 +81,15 @@ async function execute(interaction: Interaction) {
         };
 
         await interaction.user.send(payload);
-
         await interaction.editReply({
             content: "Success. Please check your Direct Messages.",
         });
+
     } catch {
         await interaction.editReply({
             content: "Failed to send direct-message, please allow direct messages from this server.",
         });
+
     }
 }
 
