@@ -37,7 +37,7 @@ export class Bot {
         this.client_id = client_id;
         this.token = token;
 
-        this.client = this.client.on("ready", (readyClient) => {
+        this.client = this.client.on("clientReady", (readyClient) => {
             this.trueClient = readyClient;
             console.log(
                 `Logged in discord bot as: ${readyClient.user.username}#${readyClient.user.discriminator} || ${readyClient.user.id}`,
