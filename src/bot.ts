@@ -78,23 +78,30 @@ export class Bot {
                     return;
                 }
 
-                command.execute(interaction)
-                    .catch((error) => {
-                        console.error(error);
-                        if (interaction.replied || interaction.deferred) {
-                            interaction.followUp({
-                                content:
-                                    "There was an error while executing this command!",
-                                flags: MessageFlags.Ephemeral,
-                            }).catch(() => {});
-                        } else {
-                            interaction.reply({
-                                content:
-                                    "There was an error while executing this command!",
-                                flags: MessageFlags.Ephemeral,
-                            }).catch(() => {});;
-                        }
-                    });
+                try {
+                    command.execute(interaction)
+                        .catch((error) => {
+                            console.log(`Failed during execution "${interaction.commandName}"`);
+                            console.error(error);
+                            
+                            if (interaction.replied || interaction.deferred) {
+                                interaction.followUp({
+                                    content:
+                                        "There was an error while executing this command!",
+                                    flags: MessageFlags.Ephemeral,
+                                }).catch(() => {});
+                            } else {
+                                interaction.reply({
+                                    content:
+                                        "There was an error while executing this command!",
+                                    flags: MessageFlags.Ephemeral,
+                                }).catch(() => {});;
+                            }
+                        });
+
+                } catch {
+                    console.log(`Failed to execute "${interaction.commandName}"`);
+                }
             }
         });
     }
