@@ -140,9 +140,12 @@ export class Bot {
             return new Promise((resolve) => resolve(true));
         }
         return new Promise((resolve) => {
-            this.client.on("ready", (readyClient) => {
+            this.client.on("clientReady", (readyClient) => {
                 resolve(true);
             });
+            // this.client.on("ready", (readyClient) => {
+            //     resolve(true);
+            // });
         });
     }
 
