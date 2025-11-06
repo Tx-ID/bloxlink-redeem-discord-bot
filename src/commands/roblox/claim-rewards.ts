@@ -1,7 +1,7 @@
 import { ApplicationIntegrationType, InteractionContextType, MessageFlags, MessagePayload, SlashCommandBuilder, type APIEmbed, type Interaction, type MessageCreateOptions } from "discord.js";
 
 import config from "../../config";
-import { getUnclaimedCodesByAmount, getUserIdClaims, getUserIdEligibility } from '../../dbOLD';
+import { getUnclaimedCodesByAmount, getUserIdClaims, getUserIdEligibility } from '../../db';
 import { getRobloxFromDiscordId, getRobloxUserFromUserId } from "../../bloxlink";
 
 const command = new SlashCommandBuilder()

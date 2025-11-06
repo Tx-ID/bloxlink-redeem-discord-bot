@@ -3,7 +3,6 @@ import config from "./config";
 import express, {type Express} from "express";
 import { StatusCodes } from 'http-status-codes';
 
-// import { getUserIdClaims, getUserIdEligibility, getUnclaimedCodesByAmount, setUserIdEligible, addClaimData, removeUserIdFromEligible, removeClaimData, getDB } from "./dbOLD";
 import { getUserIdEligibility, getUnclaimedCodesByAmount, setUserIdEligible, addClaimData, removeUserIdFromEligible, removeClaimData, initializeDatabase, ClaimModel } from "./db";
 
 import { readCodes } from "./codes";
