@@ -4,7 +4,7 @@ import express, {type Express} from "express";
 import { StatusCodes } from 'http-status-codes';
 
 // import { getUserIdClaims, getUserIdEligibility, getUnclaimedCodesByAmount, setUserIdEligible, addClaimData, removeUserIdFromEligible, removeClaimData, getDB } from "./dbOLD";
-import { getUserIdClaims, getUserIdEligibility, getUnclaimedCodesByAmount, setUserIdEligible, addClaimData, removeUserIdFromEligible, removeClaimData, initializeDatabase, getDB } from "./db";
+import { getUserIdEligibility, getUnclaimedCodesByAmount, setUserIdEligible, addClaimData, removeUserIdFromEligible, removeClaimData, initializeDatabase, ClaimModel } from "./db";
 
 import { readCodes } from "./codes";
 const codesByAmount = readCodes();
@@ -133,20 +133,55 @@ export class Server {
             }
 
             try {
-                const db = getDB();
-                const list = db.data.Claims.reduce((prev, curr, index) => {
-                    const userId = curr.UserId;
-                    const claimData = curr.ClaimList[0];
-                    if (claimData) {
-                        prev.push({
-                            "Roblox UserId": userId,
-                            "Date Obtained": new Date(claimData.Timestamp).toISOString(),
-                            "Amount Get": claimData.Amount,
-                            "Code Used": claimData.CodeUsed,
-                        });
+                // const db = getDB();
+                // const list = db.data.Claims.reduce((prev, curr, index) => {
+                //     const userId = curr.UserId;
+                //     const claimData = curr.ClaimList[0];
+                //     if (claimData) {
+                //         prev.push({
+                //             "Roblox UserId": userId,
+                //             "Date Obtained": new Date(claimData.Timestamp).toISOString(),
+                //             "Amount Get": claimData.Amount,
+                //             "Code Used": claimData.CodeUsed,
+                //         });
+                //     }
+                //     return prev;
+                // }, [] as {"Roblox UserId": number, "Date Obtained": string, "Amount Get": number, "Code Used": string}[]);
+
+                const pipeline = [
+                    {
+                        $project: {
+                            _id: 0,
+                            UserId: 1,
+                            firstClaim: { $arrayElemAt: ["$ClaimList", 0] }
+                        }
+                    },
+                    {
+                        $match: {
+                            firstClaim: { $ne: null }
+                        }
+                    },
+                    {
+                        $project: {
+                            "Roblox UserId": "$UserId",
+                            "Date Obtained": {
+                                $dateToString: {
+                                    format: "%Y-%m-%dT%H:%M:%SZ",
+                                    date: { $toDate: "$firstClaim.Timestamp" } 
+                                }
+                            },
+                            "Amount Get": "$firstClaim.Amount",
+                            "Code Used": "$firstClaim.CodeUsed"
+                        }
                     }
-                    return prev;
-                }, [] as {"Roblox UserId": number, "Date Obtained": string, "Amount Get": number, "Code Used": string}[]);
+                ];
+                
+                const list = await ClaimModel.aggregate<{
+                    "Roblox UserId": number, 
+                    "Date Obtained": string, 
+                    "Amount Get": number, 
+                    "Code Used": string
+                }>(pipeline);
 
                 if (list.length < 1) {
                     return res.status(StatusCodes.OK).json({message: "Nothing found!"});

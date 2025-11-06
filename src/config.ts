@@ -21,5 +21,7 @@ export default {
 
     PORT: process.env.PORT ?? 5478,
     BEARER_KEY: process.env.BEARER_KEY,
+
+    MONGO_CONNECTION_URL: process.env.MONGO_CONNECTION_URL ?? "mongodb://127.0.0.1:27017/akri",
     
 };

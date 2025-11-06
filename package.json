@@ -19,6 +19,11 @@
     "lowdb": "^7.0.1",
     "moment": "^2.30.1",
     "moment-timezone": "^0.6.0",
+    "mongoose": "^8.19.3",
     "zod": "^4.0.17"
+  },
+  "scripts": {
+    "start": "bun run src",
+    "migrate": "bun run src/migrations/mongo"
   }
 }

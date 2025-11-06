@@ -1,227 +1,186 @@
-import { JSONFilePreset } from 'lowdb/node';
-import type { Low } from 'lowdb';
-import fs from 'fs/promises';
+import mongoose, { model, Schema } from "mongoose";
 
 import config from "./config";
-import { readCodes } from './codes';
-import path from 'path';
+import { readCodes } from "./codes";
 const codesByAmount = readCodes();
 
-// --- Type Definitions (Unchanged) ---
-type ClaimData = {
-    UserId: number,
-    Timestamp: number,
-    Amount: number,
-    CodeUsed: string,
-};
-
-type ElibilityUserData = {
-    UserId: number,
-    EligibleList: number[],
-};
-
-type ClaimUserData = {
-    UserId: number,
-    ClaimList: ClaimData[],
+interface IClaimData {
+    Timestamp: number;
+    Amount: number;
+    CodeUsed: string;
+}
+interface IClaimUser {
+    UserId: number;
+    ClaimList: IClaimData[];
+}
+interface IEligibilityUser {
+    UserId: number;
+    EligibleList: number[];
 }
 
-type Data = {
-    Eligibilities: ElibilityUserData[],
-    Claims: ClaimUserData[],
-};
+const ClaimDataSchema = new Schema<IClaimData>({
+    Timestamp: { type: Number, required: true, default: Date.now },
+    Amount: { type: Number, required: true },
+    CodeUsed: { type: String, required: true, index: true },
+}, { _id: false });
 
-// --- Database Singleton Instance ---
-let db: Low<Data>;
+const ClaimUserSchema = new Schema<IClaimUser>({
+    UserId: { type: Number, required: true, unique: true, index: true },
+    ClaimList: { type: [ClaimDataSchema], default: [] },
+});
 
-/**
- * Ensures the database has been initialized before attempting to access it.
- */
-function ensureDbInitialized() {
-    if (!db) {
-        throw new Error("Database has not been initialized. Please call initializeDatabase() once at application startup.");
+const EligibilityUserSchema = new Schema<IEligibilityUser>({
+    UserId: { type: Number, required: true, unique: true, index: true },
+    EligibleList: { type: [Number], default: [] },
+});
+
+export const EligibilityModel = model<IEligibilityUser>(
+    "Eligibility",
+    EligibilityUserSchema,
+);
+export const ClaimModel = model<IClaimUser>("Claim", ClaimUserSchema);
+
+export async function initializeDatabase() {
+    if (mongoose.connection.readyState >= 1) {
+        console.log("Database connection already established.");
+        return;
+    }
+
+    try {
+        await mongoose.connect(config.MONGO_CONNECTION_URL);
+        console.log("Database connected successfully.");
+    } catch (error) {
+        console.error("Database connection failed:", error);
+        process.exit(1);
     }
 }
 
 /**
- * Initializes the database, loading it from file into memory.
- * This MUST be called once before any other db function is used.
+ * Gets a user's eligibility list. (Asynchronous)
+ * @returns {Promise<number[]>} A promise resolving to the user's list or an empty array.
  */
-export async function initializeDatabase() {
-    // Prevent re-initialization
-    if (db) return;
-
-    await fs.mkdir('dbs', { recursive: true });
-
-    const defaultData: Data = { Eligibilities: [], Claims: [] };
-    
-    // JSONFilePreset reads the file on initialization or creates it with defaultData
-    db = await JSONFilePreset<Data>(`dbs/${config.DB_FILENAME}`, defaultData);
-    
-    // db.data now holds the entire database content in memory.
-    console.log("Database initialized and loaded into memory.");
-};
-
-export function getDB() {
-    ensureDbInitialized();
-    return db;
-}
-
-
-// --- Read Operations (Now Synchronous) ---
-
-/**
- * Gets a user's eligibility list. (Synchronous)
- */
-export function getUserIdEligibility(userId: number): number[] {
-    ensureDbInitialized();
-    const get = db.data.Eligibilities.find(userdata => userdata.UserId === userId);
-    return get ? get.EligibleList : [];
+export async function getUserIdEligibility(userId: number): Promise<number[]> {
+    const userEligibility = await EligibilityModel.findOne({ UserId: userId })
+        .lean();
+    return userEligibility ? userEligibility.EligibleList : [];
 }
 
 /**
- * Gets a user's claim list. (Synchronous)
+ * Gets a user's claim list. (Asynchronous)
+ * @returns {Promise<IClaimData[]>} A promise resolving to the user's claims or an empty array.
  */
-export function getUserIdClaims(userId: number): ClaimData[] {
-    ensureDbInitialized();
-    const get = db.data.Claims.find(userdata => userdata.UserId === userId);
-    return get ? get.ClaimList : [];
+export async function getUserIdClaims(userId: number): Promise<IClaimData[]> {
+    const userClaims = await ClaimModel.findOne({ UserId: userId }).lean();
+    return userClaims ? userClaims.ClaimList : [];
 }
 
 /**
- * Gets all codes that have been claimed. (Synchronous)
+ * Gets all codes that have been claimed. (Asynchronous)
+ * @returns {Promise<string[]>} A promise resolving to a list of all claimed codes.
  */
-export function getClaimedCodes(): string[] {
-    ensureDbInitialized();
-    const list: string[] = [];
-
-    db.data.Claims.forEach((userdata) => {
-        userdata.ClaimList.forEach(data => list.push(data.CodeUsed));
-    });
-    return list;
+export async function getClaimedCodes(): Promise<string[]> {
+    const result = await ClaimModel.aggregate([
+        { $unwind: "$ClaimList" },
+        {
+            $group: {
+                _id: null,
+                allCodes: { $push: "$ClaimList.CodeUsed" },
+            },
+        },
+    ]);
+    return result.length > 0 ? result[0].allCodes : [];
 }
 
 /**
- * Gets a map of all unclaimed codes, organized by amount. (Synchronous)
+ * Gets a map of all unclaimed codes, organized by amount. (Asynchronous)
+ * @returns {Promise<Map<number, string[]>>} A promise resolving to the map.
  */
-export function getUnclaimedCodesByAmount(): Map<number, string[]> {
-    ensureDbInitialized();
-    const claimed = getClaimedCodes(); // This call is now synchronous
+export async function getUnclaimedCodesByAmount(): Promise<
+    Map<number, string[]>
+> {
+    const claimedList = await getClaimedCodes();
+    const claimedSet = new Set(claimedList);
     const unclaimed = new Map<number, string[]>();
 
     codesByAmount.entries().forEach(([amount, codes]) => {
-        const list = codes.filter((code) => !claimed.includes(code));
+        const list = codes.filter((code) => !claimedSet.has(code));
         unclaimed.set(amount, list);
     });
     return unclaimed;
 }
 
-
-// --- Write Operations (Remain Asynchronous) ---
-
 /**
  * Adds an amount to a user's eligibility list. (Asynchronous)
+ * This operation is now atomic and idempotent.
  */
-export async function setUserIdEligible(userId: number, amount: number) {
-    ensureDbInitialized();
-
-    let userEligibility = db.data.Eligibilities.find(user => user.UserId === userId);
-
-    if (userEligibility) {
-        // User exists, add amount if it's not already there
-        if (!userEligibility.EligibleList.includes(amount)) {
-            userEligibility.EligibleList.push(amount);
-        } else {
-            // Already eligible, no write needed
-            return;
-        }
-    } else {
-        // New user, create entry
-        db.data.Eligibilities.push({
-            UserId: userId,
-            EligibleList: [amount]
-        });
-    }
-
-    // Persist the in-memory change to the file
-    await db.write();
+export async function setUserIdEligible(
+    userId: number,
+    amount: number,
+): Promise<void> {
+    await EligibilityModel.updateOne(
+        { UserId: userId },
+        { $addToSet: { EligibleList: amount } },
+        { upsert: true },
+    );
 }
 
 /**
  * Removes a user or specific amounts from the eligibility list. (Asynchronous)
+ * @returns {Promise<boolean>} A promise resolving to true if a record was found and modified/deleted.
  */
-export async function removeUserIdFromEligible(userId: number, amounts: number[] | null) {
-    ensureDbInitialized();
-
-    const index = db.data.Eligibilities.findIndex(value => value.UserId === userId);
-    if (index === -1) {
-        return false; // User not found
-    }
-
+export async function removeUserIdFromEligible(
+    userId: number,
+    amounts: number[] | null,
+): Promise<boolean> {
     if (amounts) {
-        // Filter out specific amounts
-        const userEligibility = db.data.Eligibilities[index]!;
-        userEligibility.EligibleList = userEligibility.EligibleList.filter(
-            (v) => !amounts.includes(v)
+        const result = await EligibilityModel.updateOne(
+            { UserId: userId },
+            { $pullAll: { EligibleList: amounts } },
         );
+        return result.matchedCount > 0;
     } else {
         // Remove the entire user record
-        db.data.Eligibilities.splice(index, 1);
+        const result = await EligibilityModel.deleteOne({ UserId: userId });
+        return result.deletedCount > 0;
     }
-
-    await db.write();
-    return true;
 }
 
 /**
  * Adds a new claim record for a user. (Asynchronous)
  */
-export async function addClaimData(userId: number, Amount: number, Code: string) {
-    ensureDbInitialized();
-
-    let userClaims = db.data.Claims.find(user => user.UserId === userId);
-
-    if (!userClaims) {
-        // New user, create a claim entry for them
-        userClaims = {
-            UserId: userId,
-            ClaimList: []
-        };
-        db.data.Claims.push(userClaims);
-    }
-
-    // Add the new claim to their list
-    userClaims.ClaimList.push({
-        UserId: userId,
+export async function addClaimData(
+    userId: number,
+    Amount: number,
+    Code: string,
+): Promise<void> {
+    const newClaimData: IClaimData = {
         Timestamp: Date.now(),
         Amount,
         CodeUsed: Code,
-    });
-
-    await db.write();
+    };
+    await ClaimModel.updateOne(
+        { UserId: userId },
+        { $push: { ClaimList: newClaimData } },
+        { upsert: true },
+    );
 }
 
 /**
  * Removes a user's claim data or specific claims by amount. (Asynchronous)
+ * @returns {Promise<boolean>} A promise resolving to true if a record was found and modified/deleted.
  */
-export async function removeClaimData(userId: number, amounts: number[] | null) {
-    ensureDbInitialized();
-
-    const userClaimIndex = db.data.Claims.findIndex(claim => claim.UserId === userId);
-    if (userClaimIndex === -1) {
-        return false; // User not found
-    }
-
+export async function removeClaimData(
+    userId: number,
+    amounts: number[] | null,
+): Promise<boolean> {
     if (!amounts) {
-        // Remove the entire user's claim history
-        db.data.Claims.splice(userClaimIndex, 1);
+        const result = await ClaimModel.deleteOne({ UserId: userId });
+        return result.deletedCount > 0;
     } else {
-        // Filter out claims that match the amounts
-        const userClaim = db.data.Claims[userClaimIndex]!;
-        userClaim.ClaimList = userClaim.ClaimList.filter(
-            claimEntry => !amounts.includes(claimEntry.Amount)
+        const result = await ClaimModel.updateOne(
+            { UserId: userId },
+            { $pull: { ClaimList: { Amount: { $in: amounts } } } },
         );
+        return result.matchedCount > 0;
     }
-    
-    await db.write();
-    return true;
 }
