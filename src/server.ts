@@ -3,7 +3,8 @@ import config from "./config";
 import express, {type Express} from "express";
 import { StatusCodes } from 'http-status-codes';
 
-import { getUserIdClaims, getUserIdEligibility, getUnclaimedCodesByAmount, setUserIdEligible, addClaimData, removeUserIdFromEligible, removeClaimData, getDB } from "./db";
+// import { getUserIdClaims, getUserIdEligibility, getUnclaimedCodesByAmount, setUserIdEligible, addClaimData, removeUserIdFromEligible, removeClaimData, getDB } from "./dbOLD";
+import { getUserIdClaims, getUserIdEligibility, getUnclaimedCodesByAmount, setUserIdEligible, addClaimData, removeUserIdFromEligible, removeClaimData, initializeDatabase, getDB } from "./db";
 
 import { readCodes } from "./codes";
 const codesByAmount = readCodes();
@@ -61,6 +62,8 @@ export class Server {
     }
 
     async initialize() {
+        await initializeDatabase();
+
         const app = express();
         app.use(express.json());
 
@@ -130,7 +133,7 @@ export class Server {
             }
 
             try {
-                const db = await getDB();
+                const db = getDB();
                 const list = db.data.Claims.reduce((prev, curr, index) => {
                     const userId = curr.UserId;
                     const claimData = curr.ClaimList[0];
