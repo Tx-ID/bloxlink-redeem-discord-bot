@@ -1,7 +1,7 @@
 import mongoose, { model, Schema } from "mongoose";
 
-import config from "./config";
-import { readCodes } from "./codes";
+import config from "../config";
+import { readCodes } from "../utils/codes";
 const codesByAmount = readCodes();
 
 interface IClaimData {
@@ -98,11 +98,12 @@ export async function getClaimedCodes(): Promise<string[]> {
 export async function getUnclaimedCodesByAmount(): Promise<
     Map<number, string[]>
 > {
+    const codes = await codesByAmount;
     const claimedList = await getClaimedCodes();
     const claimedSet = new Set(claimedList);
     const unclaimed = new Map<number, string[]>();
 
-    codesByAmount.entries().forEach(([amount, codes]) => {
+    codes.forEach((codes, amount) => {
         const list = codes.filter((code) => !claimedSet.has(code));
         unclaimed.set(amount, list);
     });

@@ -45,29 +45,6 @@ export class Bot {
         });
         this.client.login(`Bot ${token}`);
 
-        //
-        const foldersPath = path.join(__dirname, "./commands");
-        const commandFolders = fs.readdirSync(foldersPath);
-
-        for (const folder of commandFolders) {
-            const commandsPath = path.join(foldersPath, folder);
-            const commandFiles = fs.readdirSync(commandsPath).filter((file) =>
-                file.endsWith(".ts")
-            );
-            for (const file of commandFiles) {
-                const filePath = path.join(commandsPath, file);
-                const command = require(filePath);
-                if ("command" in command && "execute" in command) {
-                    this.commands.set(command.command.name, command);
-                    // commands.push(command.command.toJSON());
-                } else {
-                    console.log(
-                        `[WARNING] The command at ${filePath} is missing a required "command" or "execute" property.`,
-                    );
-                }
-            }
-        }
-
         this.client.on("interactionCreate", async (interaction) => {
             if (interaction.isChatInputCommand()) {
                 const command = this.commands.get(interaction.commandName);
@@ -104,6 +81,29 @@ export class Bot {
                 }
             }
         });
+    }
+
+    public async init() {
+        const foldersPath = path.join(__dirname, "./commands");
+        const commandFolders = fs.readdirSync(foldersPath);
+
+        for (const folder of commandFolders) {
+            const commandsPath = path.join(foldersPath, folder);
+            const commandFiles = fs.readdirSync(commandsPath).filter((file) =>
+                file.endsWith(".ts")
+            );
+            for (const file of commandFiles) {
+                const filePath = path.join(commandsPath, file);
+                const command = await import(filePath);
+                if ("command" in command && "execute" in command) {
+                    this.commands.set(command.command.name, command);
+                } else {
+                    console.log(
+                        `[WARNING] The command at ${filePath} is missing a required "command" or "execute" property.`,
+                    );
+                }
+            }
+        }
     }
 
     public async clearCommands() {

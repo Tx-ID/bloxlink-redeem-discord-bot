@@ -1,7 +1,7 @@
 import { parseArgs } from "util";
 import config from "./config";
-import { Bot as bot } from './bot';
-import { Server } from "./server";
+import { Bot as bot } from './bot/bot';
+import { Server } from "./server/server";
 
 
 //
@@ -23,20 +23,25 @@ const { values, positionals } = parseArgs({
 
 
 //
-const server = new Server();
+async function main() {
+    const server = new Server();
 
-let DiscordBot: bot;
-if (config.DISCORD_BOT_TOKEN && config.DISCORD_BOT_CLIENT_ID) {
-    DiscordBot = new bot( config.DISCORD_BOT_TOKEN, config.DISCORD_BOT_CLIENT_ID );
+    // let DiscordBot: bot;
+    // if (config.DISCORD_BOT_TOKEN && config.DISCORD_BOT_CLIENT_ID) {
+    //     DiscordBot = new bot( config.DISCORD_BOT_TOKEN, config.DISCORD_BOT_CLIENT_ID );
+    //     await DiscordBot.init();
 
-    if (values["gen-commands"]) {
-      DiscordBot.waitForReady().then(async () => {
-        const guilds = await DiscordBot.getGuilds();
-        for (const guild of guilds.values()) {
-            await DiscordBot.createCommands(guild.id);
-        }
-      });
-    }
-} else {
-    console.error(`Unable to start bot, missing either DISCORD_BOT_TOKEN or DISCORD_BOT_CLIENT_ID.`);
+    //     if (values["gen-commands"]) {
+    //         await DiscordBot.waitForReady();
+    //         const guilds = await DiscordBot.getGuilds();
+    //         for (const guild of guilds.values()) {
+    //             await DiscordBot.createCommands(guild.id);
+    //         }
+    //         process.exit(0);
+    //     }
+    // } else {
+    //     console.error(`Unable to start bot, missing either DISCORD_BOT_TOKEN or DISCORD_BOT_CLIENT_ID.`);
+    // }
 }
+
+main();

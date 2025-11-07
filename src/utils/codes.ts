@@ -1,7 +1,7 @@
 import csvParser from "csv-parser";
 import fs from 'fs';
 import * as readline from 'readline';
-import config from "./config";
+import config from "../config";
 
 const availableCodeTypes = [5000, 10000];
 const mainDir = config.CODES_FOLDERNAME;
@@ -24,13 +24,13 @@ function readLines(filename: string): Promise<string[]> {
 
 let compiled: Map<number, string[]>
 
-export function readCodes() {
+export async function readCodes(): Promise<Map<number, string[]>> {
     if (!compiled) {
         compiled = new Map();
-        availableCodeTypes.forEach(async (n) => {
+        await Promise.all(availableCodeTypes.map(async (n) => {
             const list = await readLines(`${mainDir}/${String(n)}.csv`);
             compiled.set(n, list);
-        });
+        }));
     }
     return compiled;
 }

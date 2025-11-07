@@ -24,6 +24,7 @@
   },
   "scripts": {
     "start": "bun run src",
-    "migrate": "bun run src/migrations/mongo"
+    "migrate": "bun run src/migrations/mongo",
+    "refresh": "bun run src --gen-commands"
   }
 }

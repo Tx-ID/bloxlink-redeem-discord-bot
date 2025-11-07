@@ -1,8 +1,9 @@
 import { ApplicationIntegrationType, InteractionContextType, MessageFlags, MessagePayload, SlashCommandBuilder, type APIEmbed, type Interaction, type MessageCreateOptions } from "discord.js";
 
-import config from "../../config";
-import { getUnclaimedCodesByAmount, getUserIdClaims, getUserIdEligibility } from '../../db';
-import { getRobloxFromDiscordId, getRobloxUserFromUserId } from "../../bloxlink";
+import config from "../../../config";
+import { getUnclaimedCodesByAmount, getUserIdClaims, getUserIdEligibility } from '../../../database/db';
+import { getRobloxFromDiscordId } from "../../../api/bloxlink";
+import { getRobloxUserFromUserId } from "../../../api/roblox";
 
 const command = new SlashCommandBuilder()
     .setName("claim-airdrop")
@@ -12,6 +13,9 @@ const command = new SlashCommandBuilder()
 
 async function execute(interaction: Interaction) {
     if (!interaction.isChatInputCommand()) return;
+    if (!interaction.inGuild()) return;
+
+    if (!interaction.inGuild()) return;
 
     await interaction.deferReply({flags: [MessageFlags.Ephemeral]});
 

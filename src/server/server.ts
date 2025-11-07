@@ -1,11 +1,13 @@
 import z from "zod";
-import config from "./config";
-import express, {type Express} from "express";
-import { StatusCodes } from 'http-status-codes';
+import config from "../config";
+import { getUserIdEligibility, getUnclaimedCodesByAmount, setUserIdEligible, addClaimData, removeUserIdFromEligible, removeClaimData, initializeDatabase, ClaimModel } from "../database/db";
 
-import { getUserIdEligibility, getUnclaimedCodesByAmount, setUserIdEligible, addClaimData, removeUserIdFromEligible, removeClaimData, initializeDatabase, ClaimModel } from "./db";
+import express from "express";
+import type { Express } from "express";
 
-import { readCodes } from "./codes";
+import { StatusCodes } from "http-status-codes";
+
+import { readCodes } from "../utils/codes";
 const codesByAmount = readCodes();
 
 
@@ -219,7 +221,7 @@ export class Server {
                 const amount = z.int({error: "Invalid Amount"}).positive({error: "Amount must be positive"}).parse(body.Amount);
                 const dry = z.coerce.boolean().nullable().parse(body.dry ?? null);
 
-                if (!codesByAmount.keys().toArray().includes(amount))
+                if (!Array.from((await codesByAmount).keys()).includes(amount))
                     return res.status(StatusCodes.BAD_REQUEST).json({error: "Invalid Amount"});
 
                 const eligibilities = await getUserIdEligibility(Number(userId));

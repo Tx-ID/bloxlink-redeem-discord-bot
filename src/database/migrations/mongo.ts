@@ -14,7 +14,7 @@ import {
 
 // --- Import your OLD config to find the db file ---
 // (Make sure the path is correct)
-import config from '../config';
+import config from '../../config';
 
 // ===================================================================
 // !! IMPORTANT !!
