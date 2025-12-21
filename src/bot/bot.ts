@@ -10,8 +10,8 @@ import {
 } from "discord.js";
 import * as Axios from "axios";
 
-import fs from "fs";
-import path from "path";
+import * as claimRewards from "./commands/roblox/claim-rewards";
+import * as ping from "./commands/utility/ping";
 
 export class Bot {
     private client: Client = new Client({
@@ -89,24 +89,17 @@ export class Bot {
     }
 
     public async init() {
-        const foldersPath = path.join(__dirname, "./commands");
-        const commandFolders = fs.readdirSync(foldersPath);
+        const commandModules = [claimRewards, ping];
 
-        for (const folder of commandFolders) {
-            const commandsPath = path.join(foldersPath, folder);
-            const commandFiles = fs.readdirSync(commandsPath).filter((file) =>
-                file.endsWith(".ts")
-            );
-            for (const file of commandFiles) {
-                const filePath = path.join(commandsPath, file);
-                const command = await import(filePath);
-                if ("command" in command && "execute" in command) {
-                    this.commands.set(command.command.name, command);
-                } else {
-                    console.log(
-                        `[WARNING] The command at ${filePath} is missing a required "command" or "execute" property.`,
-                    );
-                }
+        for (const command of commandModules) {
+            // @ts-ignore
+            if ("command" in command && "execute" in command) {
+                // @ts-ignore
+                this.commands.set(command.command.name, command);
+            } else {
+                console.log(
+                    `[WARNING] A command is missing a required "command" or "execute" property.`,
+                );
             }
         }
     }

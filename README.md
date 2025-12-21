@@ -1,9 +1,11 @@
-```bash
-bun install
-```
+To install dependencies:
 
 ```bash
-bun run src
+npm install
 ```
 
-bun v1.2.15.
+To run:
+
+```bash
+npm start
+```

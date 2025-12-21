@@ -8,7 +8,7 @@ process.title = process.env.PROCESS_NAME || "bloxlink-redeem-discord-bot";
 
 //
 const { values, positionals } = parseArgs({
-  args: Bun.argv,
+  args: process.argv.slice(2),
   options: {
     flag1: {
       type: 'boolean',

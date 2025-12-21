@@ -1,8 +1,10 @@
 {
   "name": "bloxlink-redeem-discord-bot",
   "private": true,
+  "main": "dist/index.js",
   "devDependencies": {
-    "@types/bun": "latest"
+    "pkgroll": "^2.6.1",
+    "tsx": "^4.7.1"
   },
   "peerDependencies": {
     "typescript": "^5.9.2"
@@ -23,8 +25,10 @@
     "zod": "^4.1.12"
   },
   "scripts": {
-    "start": "bun run src",
-    "migrate": "bun run src/migrations/mongo",
-    "refresh": "bun run src --gen-commands"
+    "build": "pkgroll",
+    "start": "node dist/index.js",
+    "dev": "tsx src/index.ts",
+    "migrate": "tsx src/database/migrations/mongo.ts",
+    "refresh": "node dist/index.js --gen-commands"
   }
 }
