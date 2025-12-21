@@ -24,6 +24,7 @@ export class Bot {
         ],
     });
     private trueClient: Client<true> | undefined;
+    private readyPromise: Promise<boolean>;
 
     private client_id: string | undefined;
     private token: string | undefined;
@@ -37,12 +38,16 @@ export class Bot {
         this.client_id = client_id;
         this.token = token;
 
-        this.client = this.client.on("clientReady", (readyClient) => {
-            this.trueClient = readyClient;
-            console.log(
-                `Logged in discord bot as: ${readyClient.user.username}#${readyClient.user.discriminator} || ${readyClient.user.id}`,
-            );
+        this.readyPromise = new Promise((resolve) => {
+            this.client.once("clientReady", (readyClient) => {
+                this.trueClient = readyClient;
+                console.log(
+                    `Logged in discord bot as: ${readyClient.user.username}#${readyClient.user.discriminator} || ${readyClient.user.id}`,
+                );
+                resolve(true);
+            });
         });
+
         this.client.login(`Bot ${token}`);
 
         this.client.on("interactionCreate", async (interaction) => {
@@ -136,17 +141,7 @@ export class Bot {
     }
 
     public async waitForReady() {
-        if (this.trueClient) {
-            return new Promise((resolve) => resolve(true));
-        }
-        return new Promise((resolve) => {
-            this.client.on("clientReady", (readyClient) => {
-                resolve(true);
-            });
-            // this.client.on("ready", (readyClient) => {
-            //     resolve(true);
-            // });
-        });
+        return this.readyPromise;
     }
 
     public async getGuilds() {

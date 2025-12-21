@@ -6,21 +6,33 @@ type CacheEntry = {
 
 export class SimpleCache {
     private cache: Map<string, CacheEntry> = new Map();
+    private readonly MAX_SIZE = 10000;
+    private readonly DEFAULT_TTL = 300000; // 5 minutes
 
     set(key: string, value: any, ttl?: number): void {
         // Clear existing timeout if this key exists
         if (this.cache.has(key)) {
             const oldEntry = this.cache.get(key);
             if (oldEntry && oldEntry.timeout) clearTimeout(oldEntry.timeout);
+            // Delete and re-add to update order (LRU-like behavior)
+            this.cache.delete(key);
+        } else if (this.cache.size >= this.MAX_SIZE) {
+            // Remove the oldest entry
+            const oldestKey = this.cache.keys().next().value;
+            if (oldestKey) {
+                this.remove(oldestKey);
+            }
         }
 
         let entry: CacheEntry = { value };
 
-        if (ttl && ttl > 0) {
-            entry.expiresAt = Date.now() + ttl;
+        const effectiveTtl = ttl ?? this.DEFAULT_TTL;
+
+        if (effectiveTtl > 0) {
+            entry.expiresAt = Date.now() + effectiveTtl;
             entry.timeout = setTimeout(() => {
                 this.cache.delete(key);
-            }, ttl);
+            }, effectiveTtl);
         }
 
         this.cache.set(key, entry);

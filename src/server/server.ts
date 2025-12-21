@@ -1,6 +1,6 @@
 import z from "zod";
 import config from "../config";
-import { getUserIdEligibility, getUnclaimedCodesByAmount, setUserIdEligible, addClaimData, removeUserIdFromEligible, removeClaimData, initializeDatabase, ClaimModel } from "../database/db";
+import { getUserIdEligibility, getUnclaimedCodesByAmount, getRandomUnclaimedCode, setUserIdEligible, addClaimData, removeUserIdFromEligible, removeClaimData, initializeDatabase, ClaimModel } from "../database/db";
 
 import express from "express";
 import type { Express } from "express";
@@ -235,18 +235,14 @@ export class Server {
                     return res.status(StatusCodes.BAD_REQUEST).json({message: "This user already have the code for it."});
                 }
 
-                const unclaimed = (await getUnclaimedCodesByAmount()).get(amount)!;
-                if (unclaimed.length <= 0) {
+                const rand_code = await getRandomUnclaimedCode(amount);
+                if (!rand_code) {
                     return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({message: "Abis woy kodenya."});
                 }
 
                 if (dry === true) {
                     return res.status(StatusCodes.OK).json({message: "OK (dry-run)"});
                 }
-
-                const rand_code = unclaimed.at(
-                    Math.floor(Math.random() * unclaimed.length)
-                );
 
                 await setUserIdEligible(userId, amount);
                 await addClaimData(userId, amount, rand_code!)

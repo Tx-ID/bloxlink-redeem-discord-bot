@@ -76,19 +76,50 @@ export async function getUserIdClaims(userId: number): Promise<IClaimData[]> {
 
 /**
  * Gets all codes that have been claimed. (Asynchronous)
- * @returns {Promise<string[]>} A promise resolving to a list of all claimed codes.
+ * @returns {Promise<Set<string>>} A promise resolving to a Set of all claimed codes.
  */
-export async function getClaimedCodes(): Promise<string[]> {
-    const result = await ClaimModel.aggregate([
-        { $unwind: "$ClaimList" },
-        {
-            $group: {
-                _id: null,
-                allCodes: { $push: "$ClaimList.CodeUsed" },
-            },
-        },
-    ]);
-    return result.length > 0 ? result[0].allCodes : [];
+export async function getClaimedCodes(): Promise<Set<string>> {
+    const claims = await ClaimModel.find({}, "ClaimList.CodeUsed").lean();
+    const claimedSet = new Set<string>();
+    
+    for (const user of claims) {
+        if (user.ClaimList) {
+            for (const claim of user.ClaimList) {
+                claimedSet.add(claim.CodeUsed);
+            }
+        }
+    }
+    return claimedSet;
+}
+
+/**
+ * Gets a random unclaimed code for a specific amount.
+ * Checks against the database to ensure it hasn't been used.
+ */
+export async function getRandomUnclaimedCode(amount: number): Promise<string | undefined> {
+    const allCodesMap = await codesByAmount;
+    const codes = allCodesMap.get(amount);
+    
+    if (!codes || codes.length === 0) return undefined;
+
+    // Try up to 10 times to find a random code that isn't in the DB
+    for (let i = 0; i < 10; i++) {
+        const randomIndex = Math.floor(Math.random() * codes.length);
+        const code = codes[randomIndex];
+        
+        // Check if this specific code has been used
+        const exists = await ClaimModel.exists({ "ClaimList.CodeUsed": code });
+        if (!exists) {
+            return code;
+        }
+    }
+
+    // Fallback: If we fail 10 times, it might be because the utilized percentage is high.
+    // In this case, we do the expensive fetch.
+    const claimedSet = await getClaimedCodes();
+    const available = codes.filter(c => !claimedSet.has(c));
+    if (available.length === 0) return undefined;
+    return available[Math.floor(Math.random() * available.length)];
 }
 
 /**
@@ -99,13 +130,12 @@ export async function getUnclaimedCodesByAmount(): Promise<
     Map<number, string[]>
 > {
     const codes = await codesByAmount;
-    const claimedList = await getClaimedCodes();
-    const claimedSet = new Set(claimedList);
+    const claimedSet = await getClaimedCodes();
     const unclaimed = new Map<number, string[]>();
 
-    codes.forEach((codes, amount) => {
-        const list = codes.filter((code) => !claimedSet.has(code));
-        unclaimed.set(amount, list);
+    codes.forEach((list, amount) => {
+        const filtered = list.filter((code) => !claimedSet.has(code));
+        unclaimed.set(amount, filtered);
     });
     return unclaimed;
 }
