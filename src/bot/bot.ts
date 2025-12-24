@@ -113,7 +113,7 @@ export class Bot {
     public async createCommands(guildId?: string) {
         const rest = new REST({version: "10"}).setToken(this.token!);
         try {
-            const commands = this.commands.values().map((d) => d.command.toJSON()).toArray();
+            const commands = Array.from(this.commands.values()).map((d) => d.command.toJSON());
             if (guildId) {
                 console.log(
                     `refreshing ${this.commands.size} application (/) commands to guild ${guildId}`,

@@ -7,8 +7,8 @@ import { getRobloxUserFromUserId } from "../../../api/roblox";
 import { getCodeLabel } from "../../../utils/codes";
 
 const command = new SlashCommandBuilder()
-    .setName("claim-airdrop")
-    .setDescription("Messages you privately if you have any airdrop.")
+    .setName("claim")
+    .setDescription("Messages you privately if you have any rewards.")
     .setContexts(InteractionContextType.BotDM, InteractionContextType.Guild, InteractionContextType.PrivateChannel)
     .setIntegrationTypes(ApplicationIntegrationType.GuildInstall, ApplicationIntegrationType.UserInstall)
 
