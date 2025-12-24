@@ -53,7 +53,7 @@ async function execute(interaction: Interaction) {
             "Maaf anda belum mendapatkan airdrop.",
         ] : [
             "# 🎉 Selamat!",
-            `## Kamu berhasil mendapatkan __Rp ${new Intl.NumberFormat("id").format(eligibilities[0]!)}__ ${reward_type} dari kolaborasi spesial Indo Voice x GoPay Airdrop Event! 🎊`,
+            `## Kamu berhasil mendapatkan __${reward_type}__ dari kolaborasi spesial Indo Voice x GoPay Airdrop Event! 🎊`,
             "",
             `🎟️ Kode Voucher: \`${claims[0]!.CodeUsed}\``,
             "📲 Tukarkan langsung di aplikasi GoPay!",

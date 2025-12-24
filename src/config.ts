@@ -25,9 +25,9 @@ export default {
     MONGO_CONNECTION_URL: process.env.MONGO_CONNECTION_URL ?? "mongodb://127.0.0.1:27017/akri",
     
     CODE_TYPES: process.env.CODE_TYPES ? JSON.parse(process.env.CODE_TYPES) : {
-        2000: "Voucher",
-        5000: "GoPay Coins",
-        10000: "Cashback up to 10k rupiah"
+        2000: "Rp 2.000 Voucher",
+        5000: "Rp 5.000 GoPay Coins",
+        10000: "Voucher Cashback up to 10k"
     } as Record<number, string>,
 
     CODES_EXPIRY: process.env.CODES_EXPIRY ?? "31 November 2025",

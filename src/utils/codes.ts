@@ -39,5 +39,5 @@ export async function readCodes(): Promise<Map<number, string[]>> {
 }
 
 export function getCodeLabel(amount: number): string {
-    return CODE_TYPES[amount] || "Unknown Reward";
+    return CODE_TYPES[amount] || `Rp ${new Intl.NumberFormat("id").format(amount)} Unknown Reward`;
 }
