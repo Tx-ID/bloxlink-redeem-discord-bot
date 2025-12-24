@@ -1,6 +1,6 @@
 import z from "zod";
 import config from "../config";
-import { getUserIdEligibility, getUnclaimedCodesByAmount, getRandomUnclaimedCode, setUserIdEligible, addClaimData, removeUserIdFromEligible, removeClaimData, initializeDatabase, ClaimModel } from "../database/db";
+import { getUserIdEligibility, getUnclaimedCodesByAmount, getRandomUnclaimedCode, setUserIdEligible, addClaimData, removeUserIdFromEligible, removeClaimData, initializeDatabase, ClaimModel, resetDatabase } from "../database/db";
 
 import express from "express";
 import type { Express } from "express";
@@ -95,6 +95,22 @@ export class Server {
                     return res.status(StatusCodes.BAD_REQUEST).json({ error: err.issues.map(issue => issue.message).join(' | ') });
                 }
                 return res.status(StatusCodes.BAD_REQUEST).json({ error: err ? err?.message : String(err) });
+            }
+        });
+
+        app.delete('/reset-database', async (req, res, next) => {
+            if (!config.BEARER_KEY)
+                return res.status(StatusCodes.UNAUTHORIZED).json({error: "Unauthorized, the devs are missing something."});
+
+            if (req.headers.authorization !== `Bearer ${config.BEARER_KEY}`) {
+                return res.status(StatusCodes.UNAUTHORIZED).json({error: "Unauthorized"});
+            }
+
+            try {
+                await resetDatabase();
+                return res.status(StatusCodes.OK).json({message: "Database reset successfully."});
+            } catch(err: any) {
+                return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ error: err ? err?.message : String(err) });
             }
         });
 

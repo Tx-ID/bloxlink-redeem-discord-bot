@@ -215,3 +215,14 @@ export async function removeClaimData(
         return result.matchedCount > 0;
     }
 }
+
+/**
+ * Resets the entire database by clearing both Eligibility and Claim collections.
+ * (Asynchronous)
+ */
+export async function resetDatabase(): Promise<void> {
+    await Promise.all([
+        EligibilityModel.deleteMany({}),
+        ClaimModel.deleteMany({})
+    ]);
+}
