@@ -35,7 +35,7 @@ function convertArrayToCsv<T>(data: Map<any, Array<T>> | { [key: string | number
     return '';
   }
 
-  const headers = Array.from(dataMap.keys().map(String));
+  const headers = Array.from(dataMap.keys(), String);
   const columns = Array.from(dataMap.values());
 
   const numRows = columns.length > 0 ? Math.max(...columns.map(col => col.length)) : 0;
