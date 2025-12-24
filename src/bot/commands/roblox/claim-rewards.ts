@@ -4,6 +4,7 @@ import config from "../../../config";
 import { getUnclaimedCodesByAmount, getUserIdClaims, getUserIdEligibility } from '../../../database/db';
 import { getRobloxFromDiscordId } from "../../../api/bloxlink";
 import { getRobloxUserFromUserId } from "../../../api/roblox";
+import { getCodeLabel } from "../../../utils/codes";
 
 const command = new SlashCommandBuilder()
     .setName("claim-airdrop")
@@ -42,7 +43,7 @@ async function execute(interaction: Interaction) {
     try {
         let reward_type = "";
         if (eligibilities.length > 0) {
-            reward_type = eligibilities[0]! === 5000 ? "GoPay Coins" : "Voucher Cashback GoPay"
+            reward_type = getCodeLabel(eligibilities[0]!);
         }
 
         const lines = eligibilities.length < 1 ? [
@@ -72,7 +73,7 @@ async function execute(interaction: Interaction) {
 
         if (eligibilities.length >= 1) {
             embed.footer = {
-                "text": "Kode voucher akan hangus apabila tidak ditukarkan sebelum 31 November 2025."
+                "text": `Kode voucher akan hangus apabila tidak ditukarkan sebelum ${config.CODES_EXPIRY}.`
             }
             embed.image = {
                 "url": "https://i.ibb.co.com/MyKP3mQy/Cara-tuker-voucher-gopay-coins.jpg"

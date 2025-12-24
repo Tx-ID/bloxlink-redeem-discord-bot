@@ -3,8 +3,11 @@ import fs from 'fs';
 import * as readline from 'readline';
 import config from "../config";
 
-const availableCodeTypes = [5000, 10000];
 const mainDir = config.CODES_FOLDERNAME;
+
+export const CODE_TYPES: Record<number, string> = config.CODE_TYPES;
+
+const availableCodeTypes = Object.keys(CODE_TYPES).map(Number);
 
 function readLines(filename: string): Promise<string[]> {
     const results: string[] = [];
@@ -33,4 +36,8 @@ export async function readCodes(): Promise<Map<number, string[]>> {
         }));
     }
     return compiled;
+}
+
+export function getCodeLabel(amount: number): string {
+    return CODE_TYPES[amount] || "Unknown Reward";
 }
