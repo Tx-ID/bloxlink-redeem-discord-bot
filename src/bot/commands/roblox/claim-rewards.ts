@@ -53,7 +53,7 @@ async function execute(interaction: Interaction) {
             "Maaf anda belum bisa melakukan claim.",
         ] : [
             "# 🎉 Selamat!",
-            `## Kamu berhasil mendapatkan __${reward_type}__ dari kolaborasi spesial Indo Voice x GoPay Christmas Event! 🎊`,
+            `## Kamu berhasil mendapatkan __${reward_type}__ dari kolaborasi spesial ${config.EVENT_TITLE}! 🎊`,
             "",
             `🎟️ Kode Voucher: \`${claims[0]!.CodeUsed}\``,
             "📲 Tukarkan langsung di aplikasi GoPay!",
@@ -73,7 +73,7 @@ async function execute(interaction: Interaction) {
 
         if (eligibilities.length >= 1) {
             embed.footer = {
-                "text": `Kode voucher akan hangus apabila tidak ditukarkan sebelum ${config.CODES_EXPIRY}.`
+                "text": `Kode akan hangus apabila tidak ditukarkan sebelum ${config.CODES_EXPIRY}.`
             }
             embed.image = {
                 "url": "https://i.ibb.co.com/MyKP3mQy/Cara-tuker-voucher-gopay-coins.jpg"
