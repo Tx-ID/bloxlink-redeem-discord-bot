@@ -18,7 +18,7 @@ async function execute(interaction: Interaction) {
 
     if (!interaction.inGuild()) return;
 
-    await interaction.deferReply({flags: [MessageFlags.Ephemeral]});
+    await interaction.deferReply({ flags: [MessageFlags.Ephemeral] });
 
     const bloxlink_data = await getRobloxFromDiscordId(interaction.guildId, interaction.user.id);
     if (!bloxlink_data || !bloxlink_data.robloxID) {
@@ -50,10 +50,10 @@ async function execute(interaction: Interaction) {
             // `Logged in as [@${roblox_data.name}](https://www.roblox.com/users/${roblox_data.id}/profile).`,
             // "",
             // eligibilities.length <= 0 ? "**You don't have any redeemable rewards.**" : "Your rewards:"
-            "Maaf anda belum mendapatkan airdrop.",
+            "Maaf anda belum bisa melakukan claim.",
         ] : [
             "# 🎉 Selamat!",
-            `## Kamu berhasil mendapatkan __${reward_type}__ dari kolaborasi spesial Indo Voice x GoPay Airdrop Event! 🎊`,
+            `## Kamu berhasil mendapatkan __${reward_type}__ dari kolaborasi spesial Indo Voice x GoPay Christmas Event! 🎊`,
             "",
             `🎟️ Kode Voucher: \`${claims[0]!.CodeUsed}\``,
             "📲 Tukarkan langsung di aplikasi GoPay!",
@@ -66,7 +66,7 @@ async function execute(interaction: Interaction) {
         ];
 
         const embed: APIEmbed = {
-            title: "Indo Voice x Gopay Airdrop Event",
+            title: config.EVENT_TITLE,
             color: 3851227,
             description: lines.join('\n'),
         };
@@ -90,7 +90,7 @@ async function execute(interaction: Interaction) {
                 interaction.editReply({
                     content: "Success. Please check your Direct Messages.",
                 }).catch(() => { console.log(`Interaction failed [3]`) });
-            
+
             }).catch(() => {
                 interaction.editReply({
                     content: "Failed to send direct-message, please allow direct messages from this server.",
