@@ -19,6 +19,12 @@ export default {
     BLOXLINK_API_KEY: process.env.BLOXLINK_API_KEY ? z.coerce.string().nullable().parse(process.env.BLOXLINK_API_KEY) : null,
     BLOXLINK_API_BASE_URL: z.coerce.string().default("https://api.blox.link/v4/").parse(process.env.BLOXLINK_API_BASE_URL),
 
+    CHITOSE_API_KEY: process.env.CHITOSE_API_KEY ? z.coerce.string().nullable().parse(process.env.CHITOSE_API_KEY) : null,
+    CHITOSE_API_BASE_URL: z.coerce.string().default("https://chitose.inaf-rblx.com/api/free/").parse(process.env.CHITOSE_API_BASE_URL),
+
+    VERIFICATION_PROVIDER: z.enum(["BLOXLINK", "CHITOSE"]).default("BLOXLINK").parse(process.env.VERIFICATION_PROVIDER),
+    VERIFICATION_MESSAGE: z.string().default("Maaf anda belum memenuhi syarat untuk melakukan claim airdrop. Harap untuk menghubungkan akun Roblox anda ke bot Bloxlink untuk verifikasi.").parse(process.env.VERIFICATION_MESSAGE),
+
     PORT: process.env.PORT ?? 5478,
     BEARER_KEY: process.env.BEARER_KEY,
 

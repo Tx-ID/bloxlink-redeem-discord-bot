@@ -1,6 +1,6 @@
 import z from "zod";
 import config from "../config";
-import { getUserIdEligibility, getUnclaimedCodesByAmount, getRandomUnclaimedCode, setUserIdEligible, addClaimData, removeUserIdFromEligible, removeClaimData, initializeDatabase, ClaimModel, resetDatabase } from "../database/db";
+import { getUserIdEligibility, getUnclaimedCodesByAmount, getRandomUnclaimedCode, setUserIdEligible, addClaimData, removeUserIdFromEligible, removeClaimData, initializeDatabase, ClaimModel, EligibilityModel, resetDatabase, countEligibleUsersByAmount, resetClaimedCodes } from "../database/db";
 
 import express from "express";
 import type { Express } from "express";
@@ -98,7 +98,7 @@ export class Server {
             }
         });
 
-        app.delete('/reset-database', async (req, res, next) => {
+        app.delete('/reset-all-database', async (req, res, next) => {
             if (!config.BEARER_KEY)
                 return res.status(StatusCodes.UNAUTHORIZED).json({error: "Unauthorized, the devs are missing something."});
 
@@ -106,10 +106,67 @@ export class Server {
                 return res.status(StatusCodes.UNAUTHORIZED).json({error: "Unauthorized"});
             }
 
+            const body = req.body;
+            const dry = body ? z.coerce.boolean().nullable().parse(body.dry ?? null) : null;
+
             try {
+                if (dry === true) {
+                    const claimCount = await ClaimModel.countDocuments({});
+                    const eligibilityCount = await EligibilityModel.countDocuments({});
+                    return res.status(StatusCodes.OK).json({
+                        message: "Dry-run: Would reset entire database",
+                        data: {
+                            wouldDeleteClaims: claimCount,
+                            wouldDeleteEligibility: eligibilityCount
+                        }
+                    });
+                }
+
                 await resetDatabase();
                 return res.status(StatusCodes.OK).json({message: "Database reset successfully."});
             } catch(err: any) {
+                if (err instanceof z.ZodError) {
+                    return res.status(StatusCodes.BAD_REQUEST).json({ error: err.issues.map(issue => issue.message).join(' | ') });
+                }
+                return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ error: err ? err?.message : String(err) });
+            }
+        });
+
+        app.delete('/reset-claimed', async (req, res, next) => {
+            if (!config.BEARER_KEY)
+                return res.status(StatusCodes.UNAUTHORIZED).json({error: "Unauthorized, the devs are missing something."});
+
+            if (req.headers.authorization !== `Bearer ${config.BEARER_KEY}`) {
+                return res.status(StatusCodes.UNAUTHORIZED).json({error: "Unauthorized"});
+            }
+
+            const body = req.body;
+            const dry = body ? z.coerce.boolean().nullable().parse(body.dry ?? null) : null;
+
+            try {
+                if (dry === true) {
+                    const claimCount = await ClaimModel.countDocuments({});
+                    return res.status(StatusCodes.OK).json({
+                        message: "Dry-run: Would reset claimed codes only",
+                        data: {
+                            wouldDeleteClaims: claimCount,
+                            note: "Eligibility records would remain intact"
+                        }
+                    });
+                }
+
+                const deletedCount = await resetClaimedCodes();
+                return res.status(StatusCodes.OK).json({
+                    message: "Claimed codes reset successfully.",
+                    data: {
+                        deletedClaims: deletedCount,
+                        note: "Eligibility records remain intact - eligible users can re-claim to get new codes"
+                    }
+                });
+            } catch(err: any) {
+                if (err instanceof z.ZodError) {
+                    return res.status(StatusCodes.BAD_REQUEST).json({ error: err.issues.map(issue => issue.message).join(' | ') });
+                }
                 return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ error: err ? err?.message : String(err) });
             }
         });
@@ -272,6 +329,70 @@ export class Server {
                 return res.status(StatusCodes.BAD_REQUEST).json({ error: err ? err?.message : String(err) });
             }
         });
+        app.post('/v2/set-eligibility', async (req, res, next) => {
+            if (!config.BEARER_KEY)
+                return res.status(StatusCodes.UNAUTHORIZED).json({error: "Unauthorized, the devs are missing something."});
+
+            if (req.headers.authorization !== `Bearer ${config.BEARER_KEY}`) {
+                return res.status(StatusCodes.UNAUTHORIZED).json({error: "Unauthorized"});
+            }
+
+            const body = req.body;
+            if (!body)
+                return res.status(StatusCodes.NOT_FOUND).json({error: "Missing body"});
+
+            try {
+                const userId = z.int({error: "Invalid UserId"}).positive({error: "UserId must be positive."}).parse(body.UserId);
+                const amount = z.int({error: "Invalid Amount"}).positive({error: "Amount must be positive"}).parse(body.Amount);
+                const dry = z.coerce.boolean().nullable().parse(body.dry ?? null);
+
+                if (!Array.from((await codesByAmount).keys()).includes(amount))
+                    return res.status(StatusCodes.BAD_REQUEST).json({error: "Invalid Amount"});
+
+                const eligibilities = await getUserIdEligibility(Number(userId));
+                const assign_new_code = !eligibilities.includes(amount);
+
+                if (eligibilities.length >= 1) {
+                    return res.status(StatusCodes.BAD_REQUEST).json({message: "One user cannot have more than 1 redeem code."});
+                }
+
+                if (!assign_new_code) {
+                    return res.status(StatusCodes.BAD_REQUEST).json({message: "This user already have the code for it."});
+                }
+
+                // Check if there are enough codes for all eligible users (including this new one)
+                const eligibleCount = await countEligibleUsersByAmount(amount);
+                const allCodesMap = await codesByAmount;
+                const totalCodes = allCodesMap.get(amount)?.length || 0;
+                
+                // If adding this user would exceed available codes, reject
+                if (eligibleCount + 1 > totalCodes) {
+                    return res.status(StatusCodes.BAD_REQUEST).json({
+                        message: `Cannot set eligibility: Not enough codes available. There are ${totalCodes} total codes and ${eligibleCount} eligible users already.`
+                    });
+                }
+
+                const rand_code = await getRandomUnclaimedCode(amount);
+                if (!rand_code) {
+                    return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({message: "Abis woy kodenya."});
+                }
+
+                if (dry === true) {
+                    return res.status(StatusCodes.OK).json({message: "OK (dry-run)"});
+                }
+
+                await setUserIdEligible(userId, amount);
+
+                return res.status(StatusCodes.OK).json({message: "OK"});
+
+            } catch(err: any) {
+                if (err instanceof z.ZodError) {
+                    return res.status(StatusCodes.BAD_REQUEST).json({ error: err.issues.map(issue => issue.message).join(' | ') });
+                }
+                return res.status(StatusCodes.BAD_REQUEST).json({ error: err ? err?.message : String(err) });
+            }
+        });
+
         app.listen(config.PORT, () => {
             console.log(`Server running on port ${config.PORT}`);
         });

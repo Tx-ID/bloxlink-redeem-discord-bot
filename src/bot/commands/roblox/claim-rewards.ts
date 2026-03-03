@@ -1,8 +1,8 @@
 import { ApplicationIntegrationType, InteractionContextType, MessageFlags, MessagePayload, SlashCommandBuilder, type APIEmbed, type Interaction, type MessageCreateOptions } from "discord.js";
 
 import config from "../../../config";
-import { getUnclaimedCodesByAmount, getUserIdClaims, getUserIdEligibility } from '../../../database/db';
-import { getRobloxFromDiscordId } from "../../../api/bloxlink";
+import { getUnclaimedCodesByAmount, getUserIdClaims, getUserIdEligibility, getRandomUnclaimedCode, addClaimData } from '../../../database/db';
+import { getRobloxFromDiscordId } from "../../../api/verification";
 import { getRobloxUserFromUserId } from "../../../api/roblox";
 import { getCodeLabel } from "../../../utils/codes";
 
@@ -20,15 +20,15 @@ async function execute(interaction: Interaction) {
 
     await interaction.deferReply({ flags: [MessageFlags.Ephemeral] });
 
-    const bloxlink_data = await getRobloxFromDiscordId(interaction.guildId, interaction.user.id);
-    if (!bloxlink_data || !bloxlink_data.robloxID) {
+    const verification_data = await getRobloxFromDiscordId(interaction.guildId, interaction.user.id);
+    if (!verification_data || !verification_data.robloxID) {
         interaction.editReply({
             // content: "Unable to process airdrop. You are not linked to bloxlink.",
-            content: "Maaf anda belum memenuhi syarat untuk melakukan claim airdrop. Harap untuk menghubungkan akun Roblox anda ke bot Bloxlink untuk verifikasi."
+            content: config.VERIFICATION_MESSAGE
         }).catch(() => { console.log("Interaction failed [1]") });
         return;
     }
-    const roblox_data = await getRobloxUserFromUserId(bloxlink_data.robloxID);
+    const roblox_data = await getRobloxUserFromUserId(verification_data.robloxID);
     if (!roblox_data) {
         interaction.editReply({
             // content: "Unable to process airdrop. Invalid Roblox account.",
@@ -37,10 +37,30 @@ async function execute(interaction: Interaction) {
         return;
     }
 
-    const claims = await getUserIdClaims(Number(bloxlink_data.robloxID));
-    const eligibilities = await getUserIdEligibility(Number(bloxlink_data.robloxID));
+    const claims = await getUserIdClaims(Number(verification_data.robloxID));
+    const eligibilities = await getUserIdEligibility(Number(verification_data.robloxID));
 
     try {
+        // If user is eligible but has no claim, assign a code now
+        if (eligibilities.length > 0 && claims.length === 0) {
+            const amount = eligibilities[0]!;
+            const code = await getRandomUnclaimedCode(amount);
+            
+            if (!code) {
+                interaction.editReply({
+                    content: "Maaf, kode voucher sedang tidak tersedia. Silakan hubungi admin."
+                }).catch(() => { console.log("Interaction failed [assign code]") });
+                return;
+            }
+            
+            await addClaimData(Number(verification_data.robloxID), amount, code);
+            // Refresh claims after adding
+            const updatedClaims = await getUserIdClaims(Number(verification_data.robloxID));
+            // Use the updated claims for display
+            claims.length = 0;
+            claims.push(...updatedClaims);
+        }
+
         let reward_type = "";
         if (eligibilities.length > 0) {
             reward_type = getCodeLabel(eligibilities[0]!);
@@ -58,7 +78,7 @@ async function execute(interaction: Interaction) {
             `🎟️ Kode Voucher: \`${claims[0]!.CodeUsed}\``,
             "📲 Tukarkan langsung di aplikasi GoPay!",
             "",
-            `🔓 Cara Menukarkan Kode Voucher:\nStep 1: Buka aplikasi GoPay\nStep 2: Scroll ke bawah dan ketuk “Voucher Saya”\nStep 3: Pilih “Punya kode promo?”\nStep 4: Masukkan kode: \`${claims[0]!.CodeUsed}\` dan klik Tukar\nStep 5: Selesai! GoPay Coins kamu sudah masuk — cek di menu Riwayat Transaksi`,
+            `🔓 Cara Menukarkan Kode Voucher:\nStep 1: Buka aplikasi GoPay\nStep 2: Scroll ke bawah dan ketuk "Voucher Saya"\nStep 3: Pilih "Punya kode promo?"\nStep 4: Masukkan kode: \`${claims[0]!.CodeUsed}\` dan klik Tukar\nStep 5: Selesai! GoPay Coins kamu sudah masuk — cek di menu Riwayat Transaksi`,
             "",
             `⚠️ Perlu diingat kode voucher hanya dapat diclaim satu kali. Oleh karena itu, jangan berikan kode ini kesiapapun!`,
             "",

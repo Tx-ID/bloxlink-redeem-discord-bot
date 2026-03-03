@@ -93,8 +93,45 @@ export async function getClaimedCodes(): Promise<Set<string>> {
 }
 
 /**
+ * Count eligible users for a specific amount.
+ */
+export async function countEligibleUsersByAmount(amount: number): Promise<number> {
+    const result = await EligibilityModel.countDocuments({
+        EligibleList: amount
+    });
+    return result;
+}
+
+/**
+ * Count eligible users without claims for a specific amount.
+ * These are users who are eligible but haven't claimed yet.
+ */
+export async function countEligibleUsersWithoutClaimsByAmount(amount: number): Promise<number> {
+    // Find users who are eligible for this amount
+    const eligibleUsers = await EligibilityModel.find({
+        EligibleList: amount
+    }, { UserId: 1 }).lean();
+    
+    if (eligibleUsers.length === 0) return 0;
+    
+    const eligibleUserIds = eligibleUsers.map(u => u.UserId);
+    
+    // Find which of these users already have claims for this amount
+    const usersWithClaims = await ClaimModel.find({
+        UserId: { $in: eligibleUserIds },
+        "ClaimList.Amount": amount
+    }, { UserId: 1 }).lean();
+    
+    const usersWithClaimsSet = new Set(usersWithClaims.map(u => u.UserId));
+    
+    // Count eligible users without claims
+    return eligibleUserIds.filter(userId => !usersWithClaimsSet.has(userId)).length;
+}
+
+/**
  * Gets a random unclaimed code for a specific amount.
  * Checks against the database to ensure it hasn't been used.
+ * Now also considers eligible users who haven't claimed yet to prevent over-allocation.
  */
 export async function getRandomUnclaimedCode(amount: number): Promise<string | undefined> {
     const allCodesMap = await codesByAmount;
@@ -102,24 +139,35 @@ export async function getRandomUnclaimedCode(amount: number): Promise<string | u
     
     if (!codes || codes.length === 0) return undefined;
 
+    // Count eligible users without claims for this amount
+    const eligibleWithoutClaims = await countEligibleUsersWithoutClaimsByAmount(amount);
+    
+    // Get claimed codes
+    const claimedSet = await getClaimedCodes();
+    
+    // Calculate available codes (total - claimed - eligible without claims)
+    const availableCodes = codes.filter(c => !claimedSet.has(c));
+    const actuallyAvailable = availableCodes.length - eligibleWithoutClaims;
+    
+    if (actuallyAvailable <= 0) {
+        return undefined; // No codes available after accounting for eligible users
+    }
+
     // Try up to 10 times to find a random code that isn't in the DB
     for (let i = 0; i < 10; i++) {
-        const randomIndex = Math.floor(Math.random() * codes.length);
-        const code = codes[randomIndex];
+        const randomIndex = Math.floor(Math.random() * availableCodes.length);
+        const code = availableCodes[randomIndex];
         
-        // Check if this specific code has been used
+        // Check if this specific code has been used (should already be filtered, but double-check)
         const exists = await ClaimModel.exists({ "ClaimList.CodeUsed": code });
         if (!exists) {
             return code;
         }
     }
 
-    // Fallback: If we fail 10 times, it might be because the utilized percentage is high.
-    // In this case, we do the expensive fetch.
-    const claimedSet = await getClaimedCodes();
-    const available = codes.filter(c => !claimedSet.has(c));
-    if (available.length === 0) return undefined;
-    return available[Math.floor(Math.random() * available.length)];
+    // Fallback: If we fail 10 times, return a random available code
+    if (availableCodes.length === 0) return undefined;
+    return availableCodes[Math.floor(Math.random() * availableCodes.length)];
 }
 
 /**
@@ -214,6 +262,15 @@ export async function removeClaimData(
         );
         return result.matchedCount > 0;
     }
+}
+
+/**
+ * Resets only the Claim collection while keeping Eligibility intact.
+ * (Asynchronous)
+ */
+export async function resetClaimedCodes(): Promise<number> {
+    const result = await ClaimModel.deleteMany({});
+    return result.deletedCount;
 }
 
 /**
