@@ -277,6 +277,112 @@ export class Server {
             }
         });
 
+        app.get(`/eligibility-report`, async (req, res, next) => {
+            if (!config.BEARER_KEY)
+                return res.status(StatusCodes.UNAUTHORIZED).json({error: "Unauthorized, the devs are missing something."});
+
+            if (req.headers.authorization !== `Bearer ${config.BEARER_KEY}`) {
+                return res.status(StatusCodes.UNAUTHORIZED).json({error: "Unauthorized"});
+            }
+
+            try {
+                // Aggregate pipeline on EligibilityModel, joining Claim collection
+                const pipeline = [
+                    {
+                        $lookup: {
+                            from: "claims",
+                            localField: "UserId",
+                            foreignField: "UserId",
+                            as: "claimInfo"
+                        }
+                    },
+                    {
+                        $unwind: {
+                            path: "$claimInfo",
+                            preserveNullAndEmptyArrays: true
+                        }
+                    },
+                    {
+                        $unwind: {
+                            path: "$EligibleList",
+                            preserveNullAndEmptyArrays: false
+                        }
+                    },
+                    {
+                        $addFields: {
+                            matchingClaim: {
+                                $filter: {
+                                    input: { $ifNull: ["$claimInfo.ClaimList", []] },
+                                    as: "claim",
+                                    cond: { $eq: ["$$claim.Amount", "$EligibleList"] }
+                                }
+                            }
+                        }
+                    },
+                    {
+                        $addFields: {
+                            hasClaim: { $gt: [{ $size: "$matchingClaim" }, 0] },
+                            claimData: { $arrayElemAt: ["$matchingClaim", 0] }
+                        }
+                    },
+                    {
+                        $project: {
+                            _id: 0,
+                            "Roblox UserId": "$UserId",
+                            "Eligible Amount": "$EligibleList",
+                            "Claimed": {
+                                $cond: { if: "$hasClaim", then: "Yes", else: "No" }
+                            },
+                            "Date Claimed": {
+                                $cond: {
+                                    if: "$hasClaim",
+                                    then: {
+                                        $dateToString: {
+                                            format: "%Y-%m-%dT%H:%M:%SZ",
+                                            date: { $toDate: "$claimData.Timestamp" }
+                                        }
+                                    },
+                                    else: ""
+                                }
+                            },
+                            "Code Used": {
+                                $cond: { if: "$hasClaim", then: "$claimData.CodeUsed", else: "" }
+                            }
+                        }
+                    },
+                    {
+                        $sort: { "Roblox UserId": 1, "Eligible Amount": 1 }
+                    }
+                ];
+
+                const list = await EligibilityModel.aggregate<{
+                    "Roblox UserId": number,
+                    "Eligible Amount": number,
+                    "Claimed": string,
+                    "Date Claimed": string,
+                    "Code Used": string
+                }>(pipeline as any[]);
+
+                if (list.length < 1) {
+                    return res.status(StatusCodes.OK).json({message: "No eligible users found!"});
+                }
+
+                const now = new Date();
+                const year = now.getFullYear();
+                const month = String(now.getMonth() + 1).padStart(2, '0');
+                const day = String(now.getDate()).padStart(2, '0');
+                const filename = `ELIGIBILITY-REPORT-${year}-${month}-${day}.csv`;
+
+                const csvData = convertUserDataToCsv(list);
+                res.setHeader('Content-Type', 'text/csv');
+                res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+                res.send(csvData);
+
+            } catch(err: any) {
+                return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ error: err ? err?.message : String(err) });
+            }
+        });
+
         app.post('/set-eligibility', async (req, res, next) => {
             if (!config.BEARER_KEY)
                 return res.status(StatusCodes.UNAUTHORIZED).json({error: "Unauthorized, the devs are missing something."});
