@@ -400,22 +400,27 @@ export class Server {
                 const amount = z.int({error: "Invalid Amount"}).positive({error: "Amount must be positive"}).parse(body.Amount);
                 const dry = z.coerce.boolean().nullable().parse(body.dry ?? null);
 
-                if (!Array.from((await codesByAmount).keys()).includes(amount))
+                if (!Array.from((await codesByAmount).keys()).includes(amount)) {
+                    console.log(`[Eligibility]: ${req.headers.authorization} tried to set_eligible but invalid amount ${amount}.`);
                     return res.status(StatusCodes.BAD_REQUEST).json({error: "Invalid Amount"});
+                }
 
                 const eligibilities = await getUserIdEligibility(Number(userId));
                 const assign_new_code = !eligibilities.includes(amount);
 
                 if (eligibilities.length >= 1) {
+                    console.log(`[Eligibility]: ${req.headers.authorization} Roblox user ${userId} already claimed one code.`);
                     return res.status(StatusCodes.BAD_REQUEST).json({message: "One use cannot have more than 1 redeem code."});
                 }
 
                 if (!assign_new_code) {
+                    console.log(`[Eligibility]: ${req.headers.authorization} Roblox user ${userId} already has eligibility for amount ${amount}.`);
                     return res.status(StatusCodes.BAD_REQUEST).json({message: "This user already have the code for it."});
                 }
 
                 const rand_code = await getRandomUnclaimedCode(amount);
                 if (!rand_code) {
+                    console.log(`[Eligibility]: ${req.headers.authorization} tried to set_eligible but no code available for amount ${amount}.`);
                     return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({message: "Abis woy kodenya."});
                 }
 
@@ -452,17 +457,21 @@ export class Server {
                 const amount = z.int({error: "Invalid Amount"}).positive({error: "Amount must be positive"}).parse(body.Amount);
                 const dry = z.coerce.boolean().nullable().parse(body.dry ?? null);
 
-                if (!Array.from((await codesByAmount).keys()).includes(amount))
+                if (!Array.from((await codesByAmount).keys()).includes(amount)) {
+                    console.log(`[Eligibility]: ${req.headers.authorization} tried to set_eligible but invalid amount ${amount}.`);
                     return res.status(StatusCodes.BAD_REQUEST).json({error: "Invalid Amount"});
+                }
 
                 const eligibilities = await getUserIdEligibility(Number(userId));
                 const assign_new_code = !eligibilities.includes(amount);
 
                 if (eligibilities.length >= 1) {
+                    console.log(`[Eligibility]: ${req.headers.authorization} Roblox user ${userId} already claimed one code.`);
                     return res.status(StatusCodes.BAD_REQUEST).json({message: "One user cannot have more than 1 redeem code."});
                 }
 
                 if (!assign_new_code) {
+                    console.log(`[Eligibility]: ${req.headers.authorization} Roblox user ${userId} already has eligibility for amount ${amount}.`);
                     return res.status(StatusCodes.BAD_REQUEST).json({message: "This user already have the code for it."});
                 }
 
@@ -473,6 +482,7 @@ export class Server {
                 
                 // If adding this user would exceed available codes, reject
                 if (eligibleCount + 1 > totalCodes) {
+                    console.log(`[Eligibility]: ${req.headers.authorization} tried to set_eligible but no code available for amount ${amount}.`);
                     return res.status(StatusCodes.BAD_REQUEST).json({
                         message: `Cannot set eligibility: Not enough codes available. There are ${totalCodes} total codes and ${eligibleCount} eligible users already.`
                     });
@@ -480,6 +490,7 @@ export class Server {
 
                 const rand_code = await getRandomUnclaimedCode(amount);
                 if (!rand_code) {
+                    console.log(`[Eligibility]: ${req.headers.authorization} tried to set_eligible but no code available for amount ${amount}.`);
                     return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({message: "Abis woy kodenya."});
                 }
 

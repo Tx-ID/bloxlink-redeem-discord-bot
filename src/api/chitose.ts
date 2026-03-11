@@ -38,6 +38,14 @@ export async function getRobloxFromDiscordId(guildId: string, discordId: string)
             }
         }
     } catch (error) {
+        if (axios.isAxiosError(error)) {
+            console.error(
+                `[Chitose]: Failed to get roblox from discordId: ${discordId}`,
+                error.message
+            );
+            return undefined;
+        }
+
         console.error(`[Chitose]: Failed to get roblox from discordId: ${discordId}`, error);
     }
     return undefined;

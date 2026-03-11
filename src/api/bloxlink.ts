@@ -35,6 +35,21 @@ export async function getRobloxFromDiscordId(guildId: string, discordId: string)
             return response.data;
         }
     } catch (error) {
+        if (axios.isAxiosError(error)) {
+            const status = error.response?.status;
+            const data = error.response?.data as { error?: string } | undefined;
+            if (status === 404 && data?.error === "User not found") {
+                console.log(`[Bloxlink]: DiscordId ${discordId} user id not found in Guild nor not verified.`);
+                return;
+            }
+
+            console.error(
+                `[Bloxlink]: Failed to get roblox from discordId: ${discordId}`,
+                error.message
+            );
+            return;
+        }
+
         console.error(`[Bloxlink]: Failed to get roblox from discordId: ${discordId}`, error);
     }
 }
