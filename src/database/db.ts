@@ -382,6 +382,39 @@ export async function getServerRandomUnclaimedCode(server: RewardServerConfig, a
 }
 
 /**
+ * Get all claimed codes from a specific reward server's collection.
+ * (Public version for admin endpoints)
+ */
+export async function getServerClaimedCodesPublic(server: RewardServerConfig): Promise<Set<string>> {
+    return getServerClaimedCodes(server);
+}
+
+/**
+ * Remove a user's claim data from a specific reward server's collection.
+ */
+export async function removeServerClaimData(server: RewardServerConfig, userId: number): Promise<boolean> {
+    const ClaimM = getServerClaimModel(server.name);
+    const result = await ClaimM.deleteOne({ UserId: userId });
+    return result.deletedCount > 0;
+}
+
+/**
+ * Reset (delete all) claims in a specific reward server's collection.
+ */
+export async function resetServerClaims(server: RewardServerConfig): Promise<number> {
+    const ClaimM = getServerClaimModel(server.name);
+    const result = await ClaimM.deleteMany({});
+    return result.deletedCount;
+}
+
+/**
+ * Get the Mongoose ClaimModel for a specific reward server (for aggregation pipelines).
+ */
+export function getServerClaimModelPublic(serverName: string): Model<IClaimUser> {
+    return getServerClaimModel(serverName);
+}
+
+/**
  * Add a claim record for a user in a specific reward server's collection.
  */
 export async function addServerClaimData(server: RewardServerConfig, userId: number, Amount: number, Code: string): Promise<void> {

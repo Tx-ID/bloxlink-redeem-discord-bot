@@ -1,6 +1,8 @@
 import z from "zod";
 import config from "../config";
-import { getUserIdEligibility, getUnclaimedCodesByAmount, getRandomUnclaimedCode, setUserIdEligible, addClaimData, removeUserIdFromEligible, removeClaimData, initializeDatabase, ClaimModel, EligibilityModel, resetDatabase, countEligibleUsersByAmount, resetClaimedCodes } from "../database/db";
+import { getUserIdEligibility, getUnclaimedCodesByAmount, getRandomUnclaimedCode, setUserIdEligible, addClaimData, removeUserIdFromEligible, removeClaimData, initializeDatabase, ClaimModel, EligibilityModel, resetDatabase, countEligibleUsersByAmount, resetClaimedCodes, resetServerClaims, removeServerClaimData, getServerClaimModelPublic, getServerClaimedCodesPublic } from "../database/db";
+import { getRewardServerByName, getAllRewardServers } from "../config/reward-servers";
+import { readServerCodes } from "../utils/codes";
 
 import express from "express";
 import type { Express } from "express";
@@ -507,6 +509,191 @@ export class Server {
                     return res.status(StatusCodes.BAD_REQUEST).json({ error: err.issues.map(issue => issue.message).join(' | ') });
                 }
                 return res.status(StatusCodes.BAD_REQUEST).json({ error: err ? err?.message : String(err) });
+            }
+        });
+
+        // =============================================
+        // Reward Server (e.g. PELANGI) Debug Endpoints
+        // =============================================
+
+        /** Middleware: resolve :server param to a RewardServerConfig */
+        const resolveRewardServer = (req: express.Request, res: express.Response): ReturnType<typeof getRewardServerByName> => {
+            const serverName = (req.params as any).server?.toUpperCase();
+            if (!serverName) {
+                res.status(StatusCodes.BAD_REQUEST).json({ error: "Missing server name" });
+                return undefined;
+            }
+            const server = getRewardServerByName(serverName);
+            if (!server) {
+                res.status(StatusCodes.NOT_FOUND).json({ error: `Reward server "${serverName}" not found`, available: getAllRewardServers().map(s => s.name) });
+                return undefined;
+            }
+            return server;
+        };
+
+        app.get('/server/:server/claim-list', async (req, res, next) => {
+            if (req.headers.authorization !== `Bearer ${config.BEARER_KEY}`)
+                return res.status(StatusCodes.UNAUTHORIZED).json({ error: "Unauthorized" });
+
+            const server = resolveRewardServer(req, res);
+            if (!server) return;
+
+            try {
+                const ServerClaimModel = getServerClaimModelPublic(server.name);
+
+                const pipeline = [
+                    {
+                        $project: {
+                            _id: 0,
+                            UserId: 1,
+                            firstClaim: { $arrayElemAt: ["$ClaimList", 0] }
+                        }
+                    },
+                    { $match: { firstClaim: { $ne: null } } },
+                    {
+                        $project: {
+                            "Roblox UserId": "$UserId",
+                            "Date Obtained": {
+                                $dateToString: {
+                                    format: "%Y-%m-%dT%H:%M:%SZ",
+                                    date: { $toDate: "$firstClaim.Timestamp" }
+                                }
+                            },
+                            "Amount Get": "$firstClaim.Amount",
+                            "Code Used": "$firstClaim.CodeUsed"
+                        }
+                    }
+                ];
+
+                const list = await ServerClaimModel.aggregate(pipeline);
+
+                if (list.length < 1) {
+                    return res.status(StatusCodes.OK).json({ message: `No claims found for ${server.name}` });
+                }
+
+                const now = new Date();
+                const filename = `${server.name}-CLAIMS-${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}.csv`;
+
+                const csvData = convertUserDataToCsv(list);
+                res.setHeader('Content-Type', 'text/csv');
+                res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+                res.send(csvData);
+            } catch (err: any) {
+                return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ error: err?.message ?? String(err) });
+            }
+        });
+
+        app.get('/server/:server/unclaimed-list', async (req, res, next) => {
+            if (req.headers.authorization !== `Bearer ${config.BEARER_KEY}`)
+                return res.status(StatusCodes.UNAUTHORIZED).json({ error: "Unauthorized" });
+
+            const server = resolveRewardServer(req, res);
+            if (!server) return;
+
+            try {
+                const allCodesMap = await readServerCodes(server);
+                const claimedSet = await getServerClaimedCodesPublic(server);
+
+                const unclaimed = new Map<number, string[]>();
+                allCodesMap.forEach((list, amount) => {
+                    unclaimed.set(amount, list.filter(code => !claimedSet.has(code)));
+                });
+
+                const now = new Date();
+                const filename = `${server.name}-UNCLAIMED-${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}.csv`;
+
+                const csvData = convertArrayToCsv(unclaimed);
+                res.setHeader('Content-Type', 'text/csv');
+                res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+                res.send(csvData);
+            } catch (err: any) {
+                return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ error: err?.message ?? String(err) });
+            }
+        });
+
+        app.delete('/server/:server/reset-claims', async (req, res, next) => {
+            if (req.headers.authorization !== `Bearer ${config.BEARER_KEY}`)
+                return res.status(StatusCodes.UNAUTHORIZED).json({ error: "Unauthorized" });
+
+            const server = resolveRewardServer(req, res);
+            if (!server) return;
+
+            try {
+                const dry = req.body ? z.coerce.boolean().nullable().parse(req.body.dry ?? null) : null;
+
+                if (dry === true) {
+                    const ServerClaimModel = getServerClaimModelPublic(server.name);
+                    const count = await ServerClaimModel.countDocuments({});
+                    return res.status(StatusCodes.OK).json({
+                        message: `Dry-run: Would reset all ${server.name} claims`,
+                        data: { wouldDeleteClaims: count }
+                    });
+                }
+
+                const deletedCount = await resetServerClaims(server);
+                return res.status(StatusCodes.OK).json({
+                    message: `${server.name} claims reset successfully.`,
+                    data: { deletedClaims: deletedCount }
+                });
+            } catch (err: any) {
+                return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ error: err?.message ?? String(err) });
+            }
+        });
+
+        app.delete('/server/:server/delete-claim', async (req, res, next) => {
+            if (req.headers.authorization !== `Bearer ${config.BEARER_KEY}`)
+                return res.status(StatusCodes.UNAUTHORIZED).json({ error: "Unauthorized" });
+
+            const server = resolveRewardServer(req, res);
+            if (!server) return;
+
+            try {
+                const userId = z.int({ error: "Invalid UserId" }).positive({ error: "UserId must be positive." }).parse(req.body?.UserId);
+                const removed = await removeServerClaimData(server, userId);
+
+                return res.status(StatusCodes.OK).json({
+                    message: removed ? `Claim removed for user ${userId} in ${server.name}` : `No claim found for user ${userId} in ${server.name}`,
+                    data: { removed }
+                });
+            } catch (err: any) {
+                if (err instanceof z.ZodError) {
+                    return res.status(StatusCodes.BAD_REQUEST).json({ error: err.issues.map(i => i.message).join(' | ') });
+                }
+                return res.status(StatusCodes.BAD_REQUEST).json({ error: err?.message ?? String(err) });
+            }
+        });
+
+        app.get('/server/:server/stats', async (req, res, next) => {
+            if (req.headers.authorization !== `Bearer ${config.BEARER_KEY}`)
+                return res.status(StatusCodes.UNAUTHORIZED).json({ error: "Unauthorized" });
+
+            const server = resolveRewardServer(req, res);
+            if (!server) return;
+
+            try {
+                const ServerClaimModel = getServerClaimModelPublic(server.name);
+                const totalClaims = await ServerClaimModel.countDocuments({});
+
+                const allCodesMap = await readServerCodes(server);
+                const claimedSet = await getServerClaimedCodesPublic(server);
+
+                const codeStats: Record<string, { total: number; claimed: number; remaining: number }> = {};
+                allCodesMap.forEach((list, amount) => {
+                    const claimed = list.filter(code => claimedSet.has(code)).length;
+                    codeStats[String(amount)] = {
+                        total: list.length,
+                        claimed,
+                        remaining: list.length - claimed
+                    };
+                });
+
+                return res.status(StatusCodes.OK).json({
+                    server: server.name,
+                    totalClaimedUsers: totalClaims,
+                    codes: codeStats
+                });
+            } catch (err: any) {
+                return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ error: err?.message ?? String(err) });
             }
         });
 
