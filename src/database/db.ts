@@ -1,7 +1,9 @@
-import mongoose, { model, Schema } from "mongoose";
+import mongoose, { model, Model, Schema } from "mongoose";
 
 import config from "../config";
-import { readCodes } from "../utils/codes";
+import { readCodes, readServerCodes } from "../utils/codes";
+import type { RewardServerConfig } from "../config/reward-servers";
+
 const codesByAmount = readCodes();
 
 interface IClaimData {
@@ -81,7 +83,7 @@ export async function getUserIdClaims(userId: number): Promise<IClaimData[]> {
 export async function getClaimedCodes(): Promise<Set<string>> {
     const claims = await ClaimModel.find({}, "ClaimList.CodeUsed").lean();
     const claimedSet = new Set<string>();
-    
+
     for (const user of claims) {
         if (user.ClaimList) {
             for (const claim of user.ClaimList) {
@@ -111,19 +113,19 @@ export async function countEligibleUsersWithoutClaimsByAmount(amount: number): P
     const eligibleUsers = await EligibilityModel.find({
         EligibleList: amount
     }, { UserId: 1 }).lean();
-    
+
     if (eligibleUsers.length === 0) return 0;
-    
+
     const eligibleUserIds = eligibleUsers.map(u => u.UserId);
-    
+
     // Find which of these users already have claims for this amount
     const usersWithClaims = await ClaimModel.find({
         UserId: { $in: eligibleUserIds },
         "ClaimList.Amount": amount
     }, { UserId: 1 }).lean();
-    
+
     const usersWithClaimsSet = new Set(usersWithClaims.map(u => u.UserId));
-    
+
     // Count eligible users without claims
     return eligibleUserIds.filter(userId => !usersWithClaimsSet.has(userId)).length;
 }
@@ -136,19 +138,19 @@ export async function countEligibleUsersWithoutClaimsByAmount(amount: number): P
 export async function getRandomUnclaimedCode(amount: number): Promise<string | undefined> {
     const allCodesMap = await codesByAmount;
     const codes = allCodesMap.get(amount);
-    
+
     if (!codes || codes.length === 0) return undefined;
 
     // Count eligible users without claims for this amount
     const eligibleWithoutClaims = await countEligibleUsersWithoutClaimsByAmount(amount);
-    
+
     // Get claimed codes
     const claimedSet = await getClaimedCodes();
-    
+
     // Calculate available codes (total - claimed - eligible without claims)
     const availableCodes = codes.filter(c => !claimedSet.has(c));
     const actuallyAvailable = availableCodes.length - eligibleWithoutClaims;
-    
+
     if (actuallyAvailable <= 0) {
         return undefined; // No codes available after accounting for eligible users
     }
@@ -157,7 +159,7 @@ export async function getRandomUnclaimedCode(amount: number): Promise<string | u
     for (let i = 0; i < 10; i++) {
         const randomIndex = Math.floor(Math.random() * availableCodes.length);
         const code = availableCodes[randomIndex];
-        
+
         // Check if this specific code has been used (should already be filtered, but double-check)
         const exists = await ClaimModel.exists({ "ClaimList.CodeUsed": code });
         if (!exists) {
@@ -282,4 +284,116 @@ export async function resetDatabase(): Promise<void> {
         EligibilityModel.deleteMany({}),
         ClaimModel.deleteMany({})
     ]);
+}
+
+// =============================================
+// Dynamic Per-Server Reward Claims
+// =============================================
+
+/** Cache of dynamically created Mongoose models: serverName → ClaimModel */
+const serverClaimModels = new Map<string, Model<IClaimUser>>();
+
+/**
+ * Get or create a Mongoose ClaimModel for a specific reward server.
+ * Each server gets its own MongoDB collection: "{Name}Claim"
+ */
+function getServerClaimModel(serverName: string): Model<IClaimUser> {
+    const existing = serverClaimModels.get(serverName);
+    if (existing) return existing;
+
+    const schemaName = `${serverName}Claim`;
+
+    // Check if model already registered in mongoose (e.g. from a previous hot-reload)
+    if (mongoose.modelNames().includes(schemaName)) {
+        const m = mongoose.model<IClaimUser>(schemaName);
+        serverClaimModels.set(serverName, m);
+        return m;
+    }
+
+    const claimDataSchema = new Schema<IClaimData>({
+        Timestamp: { type: Number, required: true, default: Date.now },
+        Amount: { type: Number, required: true },
+        CodeUsed: { type: String, required: true, index: true },
+    }, { _id: false });
+
+    const claimUserSchema = new Schema<IClaimUser>({
+        UserId: { type: Number, required: true, unique: true, index: true },
+        ClaimList: { type: [claimDataSchema], default: [] },
+    });
+
+    const m = model<IClaimUser>(schemaName, claimUserSchema);
+    serverClaimModels.set(serverName, m);
+    return m;
+}
+
+/**
+ * Get a user's claims from a specific reward server's collection.
+ */
+export async function getServerUserClaims(server: RewardServerConfig, userId: number): Promise<IClaimData[]> {
+    const ClaimM = getServerClaimModel(server.name);
+    const userClaims = await ClaimM.findOne({ UserId: userId }).lean();
+    return userClaims ? userClaims.ClaimList : [];
+}
+
+/**
+ * Get all claimed codes from a specific reward server's collection.
+ */
+async function getServerClaimedCodes(server: RewardServerConfig): Promise<Set<string>> {
+    const ClaimM = getServerClaimModel(server.name);
+    const claims = await ClaimM.find({}, "ClaimList.CodeUsed").lean();
+    const claimedSet = new Set<string>();
+    for (const user of claims) {
+        if (user.ClaimList) {
+            for (const claim of user.ClaimList) {
+                claimedSet.add(claim.CodeUsed);
+            }
+        }
+    }
+    return claimedSet;
+}
+
+/**
+ * Get a random unclaimed code for a specific reward server + amount.
+ */
+export async function getServerRandomUnclaimedCode(server: RewardServerConfig, amount: number): Promise<string | undefined> {
+    const allCodesMap = await readServerCodes(server);
+    const codes = allCodesMap.get(amount);
+
+    if (!codes || codes.length === 0) return undefined;
+
+    const ClaimM = getServerClaimModel(server.name);
+    const claimedSet = await getServerClaimedCodes(server);
+    const availableCodes = codes.filter(c => !claimedSet.has(c));
+
+    if (availableCodes.length <= 0) return undefined;
+
+    // Try up to 10 times to find a random code that isn't in the DB
+    for (let i = 0; i < 10; i++) {
+        const randomIndex = Math.floor(Math.random() * availableCodes.length);
+        const code = availableCodes[randomIndex];
+        const exists = await ClaimM.exists({ "ClaimList.CodeUsed": code });
+        if (!exists) {
+            return code;
+        }
+    }
+
+    if (availableCodes.length === 0) return undefined;
+    return availableCodes[Math.floor(Math.random() * availableCodes.length)];
+}
+
+/**
+ * Add a claim record for a user in a specific reward server's collection.
+ */
+export async function addServerClaimData(server: RewardServerConfig, userId: number, Amount: number, Code: string): Promise<void> {
+    const ClaimM = getServerClaimModel(server.name);
+    const newClaimData: IClaimData = {
+        Timestamp: Date.now(),
+        Amount,
+        CodeUsed: Code,
+    };
+    await ClaimM.updateOne(
+        { UserId: userId },
+        { $push: { ClaimList: newClaimData } },
+        { upsert: true },
+    );
 }
