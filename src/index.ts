@@ -32,15 +32,10 @@ async function main() {
     if (config.DISCORD_BOT_TOKEN && config.DISCORD_BOT_CLIENT_ID) {
         DiscordBot = new bot( config.DISCORD_BOT_TOKEN, config.DISCORD_BOT_CLIENT_ID );
         await DiscordBot.init();
+        await DiscordBot.waitForReady();
 
-        if (values["gen-commands"]) {
-            await DiscordBot.waitForReady();
-            const guilds = await DiscordBot.getGuilds();
-            for (const guild of guilds.values()) {
-                await DiscordBot.createCommands(guild.id);
-            }
-            process.exit(0);
-        }
+        // Register commands globally on every startup
+        await DiscordBot.createCommands();
     } else {
         console.error(`Unable to start bot, missing either DISCORD_BOT_TOKEN or DISCORD_BOT_CLIENT_ID.`);
     }
