@@ -13,11 +13,11 @@ export async function getRobloxFromDiscordId(guildId: string, discordId: string)
     try {
         const response = await chitoseREST.get(`guild/${guildId}/user/discord/${discordId}`);
         if (response.status === 200 && response.data) {
-            const data = response.data;
-            if (data.robloxAccounts && data.robloxAccounts.length > 0) {
+            const data = response.data.data;
+            if (data && data.robloxAccounts && data.robloxAccounts.length > 0) {
                 // Determine which account to use. For now, picking the first one.
                 const mainAccount = data.robloxAccounts[0];
-                
+
                 return {
                     robloxID: mainAccount.robloxUserId,
                     resolved: {

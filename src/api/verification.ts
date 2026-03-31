@@ -18,15 +18,23 @@ export async function getRobloxFromDiscordId(guildId: string, discordId: string)
  */
 export async function getRobloxFromDiscordIdWithFallback(guildId: string, discordId: string): Promise<LookupRobloxData | undefined> {
     // Try Bloxlink first
-    const bloxlinkResult = await bloxlink.getRobloxFromDiscordId(guildId, discordId);
-    if (bloxlinkResult && bloxlinkResult.robloxID) {
-        return bloxlinkResult;
+    try {
+        const bloxlinkResult = await bloxlink.getRobloxFromDiscordId(guildId, discordId);
+        if (bloxlinkResult && bloxlinkResult.robloxID) {
+            return bloxlinkResult;
+        }
+    } catch (error) {
+        console.error(`[Verification]: Bloxlink lookup failed for ${discordId}, falling back to Chitose`, error);
     }
 
     // Fall back to Chitose
-    const chitoseResult = await chitose.getRobloxFromDiscordId(guildId, discordId);
-    if (chitoseResult && chitoseResult.robloxID) {
-        return chitoseResult;
+    try {
+        const chitoseResult = await chitose.getRobloxFromDiscordId(guildId, discordId);
+        if (chitoseResult && chitoseResult.robloxID) {
+            return chitoseResult;
+        }
+    } catch (error) {
+        console.error(`[Verification]: Chitose lookup failed for ${discordId}`, error);
     }
 
     return undefined;
