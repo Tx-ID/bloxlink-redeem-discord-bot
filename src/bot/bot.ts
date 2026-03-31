@@ -123,9 +123,15 @@ export class Bot {
                     { body: commands },
                 );
             } else {
+                console.log(
+                    `refreshing ${this.commands.size} application (/) commands globally`,
+                );
                 const data: any = await rest.put(
                     Routes.applicationCommands(this.client_id!),
                     { body: commands },
+                );
+                console.log(
+                    `successfully refreshed ${this.commands.size} global application (/) commands`,
                 );
             }
         } catch (error) {

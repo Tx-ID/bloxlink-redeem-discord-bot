@@ -38,4 +38,6 @@ export default {
 
     CODES_EXPIRY: process.env.CODES_EXPIRY ?? "31 November 2025",
     EVENT_TITLE: process.env.EVENT_TITLE ?? "Indo Voice x Gopay Christmas Event",
+
+    PREVIEW_ALLOWED_USER_IDS: (process.env.PREVIEW_ALLOWED_USER_IDS ?? "").split(",").map(s => s.trim()).filter(Boolean),
 };
