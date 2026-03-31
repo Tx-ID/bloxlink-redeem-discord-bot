@@ -13,6 +13,7 @@ interface IClaimData {
 }
 interface IClaimUser {
     UserId: number;
+    DiscordUserId?: string;
     ClaimList: IClaimData[];
 }
 interface IEligibilityUser {
@@ -28,6 +29,7 @@ const ClaimDataSchema = new Schema<IClaimData>({
 
 const ClaimUserSchema = new Schema<IClaimUser>({
     UserId: { type: Number, required: true, unique: true, index: true },
+    DiscordUserId: { type: String, index: true },
     ClaimList: { type: [ClaimDataSchema], default: [] },
 });
 
@@ -74,6 +76,14 @@ export async function getUserIdEligibility(userId: number): Promise<number[]> {
 export async function getUserIdClaims(userId: number): Promise<IClaimData[]> {
     const userClaims = await ClaimModel.findOne({ UserId: userId }).lean();
     return userClaims ? userClaims.ClaimList : [];
+}
+
+/**
+ * Get claims for a Discord user (across any Roblox account).
+ */
+export async function getDiscordUserClaims(discordUserId: string): Promise<IClaimData[]> {
+    const existing = await ClaimModel.findOne({ DiscordUserId: discordUserId, "ClaimList.0": { $exists: true } }).lean();
+    return existing ? existing.ClaimList : [];
 }
 
 /**
@@ -233,6 +243,7 @@ export async function addClaimData(
     userId: number,
     Amount: number,
     Code: string,
+    discordUserId?: string,
 ): Promise<void> {
     const newClaimData: IClaimData = {
         Timestamp: Date.now(),
@@ -241,9 +252,16 @@ export async function addClaimData(
     };
     await ClaimModel.updateOne(
         { UserId: userId },
-        { $push: { ClaimList: newClaimData } },
+        { $push: { ClaimList: newClaimData }, ...(discordUserId ? { $setOnInsert: { DiscordUserId: discordUserId } } : {}) },
         { upsert: true },
     );
+    // Ensure DiscordUserId is set even on existing documents
+    if (discordUserId) {
+        await ClaimModel.updateOne(
+            { UserId: userId, DiscordUserId: { $exists: false } },
+            { $set: { DiscordUserId: discordUserId } },
+        );
+    }
 }
 
 /**
@@ -318,6 +336,7 @@ function getServerClaimModel(serverName: string): Model<IClaimUser> {
 
     const claimUserSchema = new Schema<IClaimUser>({
         UserId: { type: Number, required: true, unique: true, index: true },
+        DiscordUserId: { type: String, index: true },
         ClaimList: { type: [claimDataSchema], default: [] },
     });
 
@@ -333,6 +352,15 @@ export async function getServerUserClaims(server: RewardServerConfig, userId: nu
     const ClaimM = getServerClaimModel(server.name);
     const userClaims = await ClaimM.findOne({ UserId: userId }).lean();
     return userClaims ? userClaims.ClaimList : [];
+}
+
+/**
+ * Get claims for a Discord user in a specific reward server.
+ */
+export async function getServerDiscordUserClaims(server: RewardServerConfig, discordUserId: string): Promise<IClaimData[]> {
+    const ClaimM = getServerClaimModel(server.name);
+    const existing = await ClaimM.findOne({ DiscordUserId: discordUserId, "ClaimList.0": { $exists: true } }).lean();
+    return existing ? existing.ClaimList : [];
 }
 
 /**
@@ -417,7 +445,7 @@ export function getServerClaimModelPublic(serverName: string): Model<IClaimUser>
 /**
  * Add a claim record for a user in a specific reward server's collection.
  */
-export async function addServerClaimData(server: RewardServerConfig, userId: number, Amount: number, Code: string): Promise<void> {
+export async function addServerClaimData(server: RewardServerConfig, userId: number, Amount: number, Code: string, discordUserId?: string): Promise<void> {
     const ClaimM = getServerClaimModel(server.name);
     const newClaimData: IClaimData = {
         Timestamp: Date.now(),
@@ -426,7 +454,13 @@ export async function addServerClaimData(server: RewardServerConfig, userId: num
     };
     await ClaimM.updateOne(
         { UserId: userId },
-        { $push: { ClaimList: newClaimData } },
+        { $push: { ClaimList: newClaimData }, ...(discordUserId ? { $setOnInsert: { DiscordUserId: discordUserId } } : {}) },
         { upsert: true },
     );
+    if (discordUserId) {
+        await ClaimM.updateOne(
+            { UserId: userId, DiscordUserId: { $exists: false } },
+            { $set: { DiscordUserId: discordUserId } },
+        );
+    }
 }

@@ -1,7 +1,7 @@
 import { ActionRowBuilder, ApplicationIntegrationType, ButtonBuilder, ButtonStyle, InteractionContextType, MessageFlags, MessagePayload, PermissionFlagsBits, SlashCommandBuilder, type APIEmbed, type Interaction, type MessageCreateOptions } from "discord.js";
 
 import config from "../../../config";
-import { getUserIdClaims, getUserIdEligibility, getRandomUnclaimedCode, addClaimData, getServerUserClaims, getServerRandomUnclaimedCode, addServerClaimData } from '../../../database/db';
+import { getUserIdClaims, getUserIdEligibility, getRandomUnclaimedCode, addClaimData, getServerUserClaims, getServerRandomUnclaimedCode, addServerClaimData, getDiscordUserClaims, getServerDiscordUserClaims } from '../../../database/db';
 import { getRobloxFromDiscordId, getRobloxFromDiscordIdWithFallback } from "../../../api/verification";
 import { getRobloxUserFromUserId } from "../../../api/roblox";
 import { doesUserHaveBadge } from "../../../api/roblox-badge";
@@ -114,11 +114,15 @@ async function executeRewardServer(interaction: Interaction & { guildId: string 
         return;
     }
 
-    // Use this server's separate claims collection
-    const claims = await getServerUserClaims(server, Number(verification_data.robloxID));
+    // Check existing claims by Roblox ID and Discord ID
+    const claimsByRoblox = await getServerUserClaims(server, Number(verification_data.robloxID));
+    const claimsByDiscord = await getServerDiscordUserClaims(server, interaction.user.id);
+
+    // Use whichever has an existing claim (resend the already-assigned code)
+    const claims = claimsByRoblox.length > 0 ? claimsByRoblox : claimsByDiscord;
 
     try {
-        // If user has the badge but no claim yet, assign a code now
+        // If no existing claim from either Roblox or Discord ID, assign a new code
         if (claims.length === 0) {
             const serverAmounts = Object.keys(server.codeTypes).map(Number);
             if (serverAmounts.length === 0) {
@@ -138,7 +142,7 @@ async function executeRewardServer(interaction: Interaction & { guildId: string 
                 return;
             }
 
-            await addServerClaimData(server, Number(verification_data.robloxID), amount, code);
+            await addServerClaimData(server, Number(verification_data.robloxID), amount, code, interaction.user.id);
             // Refresh claims after adding
             const updatedClaims = await getServerUserClaims(server, Number(verification_data.robloxID));
             claims.length = 0;
@@ -276,7 +280,9 @@ async function executeDefault(interaction: Interaction, preview = false) {
         return;
     }
 
-    const claims = await getUserIdClaims(Number(verification_data.robloxID));
+    const claimsByRoblox = await getUserIdClaims(Number(verification_data.robloxID));
+    const claimsByDiscord = await getDiscordUserClaims(interaction.user.id);
+    const claims = claimsByRoblox.length > 0 ? claimsByRoblox : claimsByDiscord;
     const eligibilities = await getUserIdEligibility(Number(verification_data.robloxID));
 
     try {
@@ -292,7 +298,7 @@ async function executeDefault(interaction: Interaction, preview = false) {
                 return;
             }
 
-            await addClaimData(Number(verification_data.robloxID), amount, code);
+            await addClaimData(Number(verification_data.robloxID), amount, code, interaction.user.id);
             // Refresh claims after adding
             const updatedClaims = await getUserIdClaims(Number(verification_data.robloxID));
             // Use the updated claims for display
