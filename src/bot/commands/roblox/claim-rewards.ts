@@ -100,8 +100,14 @@ async function executeRewardServer(interaction: Interaction & { guildId: string 
     }
 
     // Badge check
-    const hasBadge = await doesUserHaveBadge(verification_data.robloxID, server.badgeId);
-    if (!hasBadge) {
+    const badgeResult = await doesUserHaveBadge(verification_data.robloxID, server.badgeId);
+    if (badgeResult.rateLimited) {
+        interaction.editReply({
+            content: "Maaf, pengecekan badge sedang mengalami gangguan. Silakan coba lagi dalam beberapa menit."
+        }).catch(() => { console.log(`[${server.name}]: Interaction failed [badge rate limit]`) });
+        return;
+    }
+    if (!badgeResult.hasBadge) {
         interaction.editReply({
             content: "Maaf, kamu belum memiliki badge yang diperlukan untuk melakukan claim reward ini."
         }).catch(() => { console.log(`[${server.name}]: Interaction failed [badge check]`) });

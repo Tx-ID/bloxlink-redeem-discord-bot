@@ -19,13 +19,22 @@ export async function getRobloxUserFromUserId(userId: string | number): Promise<
         return robloxUserCache.get(id);
     }
 
-    try {
-        const response = await axios.get(`https://users.roblox.com/v1/users/${userId}`);
-        if (response.status === 200) {
-            robloxUserCache.set(id, response.data, 60 * 60 * 1000); // 1 hour
-            return response.data;
+    const endpoints = [
+        `https://users.roblox.com/v1/users/${userId}`,
+        `https://users.roproxy.com/v1/users/${userId}`,
+    ];
+
+    for (const url of endpoints) {
+        try {
+            const response = await axios.get(url);
+            if (response.status === 200) {
+                robloxUserCache.set(id, response.data, 60 * 60 * 1000); // 1 hour
+                return response.data;
+            }
+        } catch (error) {
+            const isLast = url === endpoints[endpoints.length - 1];
+            console.error(`[Roblox]: Failed at ${new URL(url).host} for userId: ${userId}`, error);
+            if (!isLast) continue;
         }
-    } catch (error) {
-        console.error(`[Roblox]: Failed to get roblox user from userId: ${userId}`, error);
     }
 }
