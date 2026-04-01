@@ -25,8 +25,9 @@ export async function doesUserHaveBadge(userId: string | number, badgeId: number
         try {
             const response = await axios.get(url, { params: { badgeIds: badgeId } });
 
-            if (response.status === 200 && response.data?.data) {
-                const hasBadge = response.data.data.length > 0;
+            if (response.status === 200) {
+                const badgeData = response.data?.data;
+                const hasBadge = Array.isArray(badgeData) && badgeData.length > 0;
                 const result: BadgeCheckResult = { hasBadge };
                 badgeCache.set(cacheKey, result, 15 * 60 * 1000); // Cache for 15 minutes
                 return result;
