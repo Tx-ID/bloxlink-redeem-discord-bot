@@ -99,27 +99,29 @@ async function executeRewardServer(interaction: Interaction & { guildId: string 
         return;
     }
 
-    // Badge check
-    const badgeResult = await doesUserHaveBadge(verification_data.robloxID, server.badgeId);
-    if (badgeResult.rateLimited) {
-        interaction.editReply({
-            content: "Maaf, pengecekan badge sedang mengalami gangguan. Silakan coba lagi dalam beberapa menit."
-        }).catch(() => { console.log(`[${server.name}]: Interaction failed [badge rate limit]`) });
-        return;
-    }
-    if (!badgeResult.hasBadge) {
-        interaction.editReply({
-            content: "Maaf, kamu belum memiliki badge yang diperlukan untuk melakukan claim reward ini."
-        }).catch(() => { console.log(`[${server.name}]: Interaction failed [badge check]`) });
-        return;
-    }
-
-    // Check existing claims by Roblox ID and Discord ID
+    // Check existing claims by Roblox ID and Discord ID first — skip badge check if already claimed
     const claimsByRoblox = await getServerUserClaims(server, Number(verification_data.robloxID));
     const claimsByDiscord = await getServerDiscordUserClaims(server, interaction.user.id);
 
     // Use whichever has an existing claim (resend the already-assigned code)
     const claims = claimsByRoblox.length > 0 ? claimsByRoblox : claimsByDiscord;
+
+    // Only check badge if user hasn't claimed yet — no need to hit the API for returning users
+    if (claims.length === 0) {
+        const badgeResult = await doesUserHaveBadge(verification_data.robloxID, server.badgeId);
+        if (badgeResult.rateLimited) {
+            interaction.editReply({
+                content: "Maaf, pengecekan badge sedang mengalami gangguan. Silakan coba lagi dalam beberapa menit."
+            }).catch(() => { console.log(`[${server.name}]: Interaction failed [badge rate limit]`) });
+            return;
+        }
+        if (!badgeResult.hasBadge) {
+            interaction.editReply({
+                content: "Maaf, kamu belum memiliki badge yang diperlukan untuk melakukan claim reward ini."
+            }).catch(() => { console.log(`[${server.name}]: Interaction failed [badge check]`) });
+            return;
+        }
+    }
 
     try {
         // If no existing claim from either Roblox or Discord ID, assign a new code
