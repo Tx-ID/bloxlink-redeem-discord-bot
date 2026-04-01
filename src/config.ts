@@ -40,4 +40,6 @@ export default {
     EVENT_TITLE: process.env.EVENT_TITLE ?? "Indo Voice x Gopay Christmas Event",
 
     PREVIEW_ALLOWED_USER_IDS: (process.env.PREVIEW_ALLOWED_USER_IDS ?? "").split(",").map(s => s.trim()).filter(Boolean),
+
+    ROBLOX_OPEN_CLOUD_API_KEY: process.env.ROBLOX_OPEN_CLOUD_API_KEY ?? null,
 };

@@ -115,6 +115,12 @@ async function executeRewardServer(interaction: Interaction & { guildId: string 
             }).catch(() => { console.log(`[${server.name}]: Interaction failed [badge rate limit]`) });
             return;
         }
+        if (badgeResult.privateInventory) {
+            interaction.editReply({
+                content: "Maaf, inventory Roblox kamu sedang di-private. Silakan ubah pengaturan inventory kamu menjadi publik terlebih dahulu, lalu coba lagi."
+            }).catch(() => { console.log(`[${server.name}]: Interaction failed [private inventory]`) });
+            return;
+        }
         if (!badgeResult.hasBadge) {
             interaction.editReply({
                 content: "Maaf, kamu belum memiliki badge yang diperlukan untuk melakukan claim reward ini."
