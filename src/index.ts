@@ -19,6 +19,9 @@ const { values, positionals } = parseArgs({
     ["gen-commands"]: {
         type: "boolean",
     },
+    ["server-only"]: {
+        type: "boolean",
+    },
   },
   allowPositionals: true,
 });
@@ -27,6 +30,11 @@ const { values, positionals } = parseArgs({
 //
 async function main() {
     const server = new Server();
+
+    if (values["server-only"]) {
+        console.log("Running in --server-only mode; Discord bot will not start.");
+        return;
+    }
 
     let DiscordBot: bot;
     if (config.DISCORD_BOT_TOKEN && config.DISCORD_BOT_CLIENT_ID) {

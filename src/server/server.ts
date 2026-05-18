@@ -1,15 +1,28 @@
 import z from "zod";
 import config from "../config";
-import { getUserIdEligibility, getUnclaimedCodesByAmount, getRandomUnclaimedCode, setUserIdEligible, addClaimData, removeUserIdFromEligible, removeClaimData, initializeDatabase, ClaimModel, EligibilityModel, resetDatabase, countEligibleUsersByAmount, resetClaimedCodes, resetServerClaims, removeServerClaimData, getServerClaimModelPublic, getServerClaimedCodesPublic } from "../database/db";
+import { getUserIdEligibility, getUnclaimedCodesByAmount, getRandomUnclaimedCode, setUserIdEligible, addClaimData, removeUserIdFromEligible, removeClaimData, initializeDatabase, ClaimModel, EligibilityModel, resetDatabase, countEligibleUsersByAmount, resetClaimedCodes, resetServerClaims, removeServerClaimData, getServerClaimModelPublic, getServerClaimedCodesPublic, getServerUserEligibility, setServerUserEligible, countServerEligibleUsersByAmount, getServerRandomUnclaimedCode } from "../database/db";
 import { getRewardServerByName, getAllRewardServers } from "../config/reward-servers";
 import { readServerCodes } from "../utils/codes";
 
 import express from "express";
 import type { Express } from "express";
+import fs from "fs";
+import path from "path";
 
 import { StatusCodes } from "http-status-codes";
+import { apiReference } from "@scalar/express-api-reference";
+import { decryptUserId, notifyHtmlOpened } from "../utils/consent";
+
+const DOCS_STATIC_DIR = path.resolve(process.cwd(), "static", "docs");
+const SAFE_DOC_NAME = /^[A-Za-z0-9_-]+$/;
 
 import { readCodes } from "../utils/codes";
+import {
+    openApiDocument,
+    UserIdSchema,
+    AmountSchema,
+    DryFlagSchema,
+} from "./openapi";
 const codesByAmount = readCodes();
 
 
@@ -70,6 +83,58 @@ export class Server {
         const app = express();
         app.use(express.json());
 
+        // OpenAPI spec + Scalar reference UI (public, unauthenticated)
+        app.get("/openapi.json", (_req, res) => {
+            res.setHeader("Cache-Control", "no-store");
+            res.json(openApiDocument);
+        });
+
+        // Static HTML renderer: /docs/<name> serves static/docs/<name>.html.
+        // If the request carries a `us` query (encrypted Discord user ID), notify
+        // the consent bridge so the bot can advance the DM flow.
+        // Invalid names or missing files call next() so the catch-all at the
+        // bottom handles them (redirecting to ROOT_REDIRECT_URL when set).
+        app.get("/docs/:name", (req, res, next) => {
+            const name = req.params.name ?? "";
+            if (!SAFE_DOC_NAME.test(name)) return next();
+
+            const us = typeof req.query.us === "string" ? req.query.us : "";
+            if (us) {
+                const userId = decryptUserId(us);
+                if (userId) notifyHtmlOpened(userId);
+                // Redirect to the same path with `us` stripped so the token isn't
+                // visible in the address bar or browser history. Other query params
+                // are preserved. 302 replaces the original entry in history.
+                const cleanUrl = new URL(req.originalUrl, "http://placeholder");
+                cleanUrl.searchParams.delete("us");
+                const target = cleanUrl.pathname + (cleanUrl.search || "");
+                return res.redirect(StatusCodes.MOVED_TEMPORARILY, target);
+            }
+
+            const filepath = path.join(DOCS_STATIC_DIR, `${name}.html`);
+            if (!filepath.startsWith(DOCS_STATIC_DIR + path.sep)) return next();
+
+            fs.readFile(filepath, "utf8", (err, content) => {
+                if (err) return next();
+                res.setHeader("Content-Type", "text/html; charset=utf-8");
+                res.setHeader("Cache-Control", "public, max-age=300");
+                res.send(content);
+            });
+        });
+
+        app.use(
+            "/scalardocs",
+            apiReference({
+                url: "/openapi.json",
+                pageTitle: "Bloxlink Redeem — Admin API",
+                theme: "purple",
+                persistAuth: true,
+                telemetry: false,
+                showDeveloperTools: "never",
+                defaultHttpClient: { targetKey: "shell", clientKey: "curl" },
+            }),
+        );
+
         app.delete('/delete-eligibility', async (req, res, next) => { // dev only
             if (!config.BEARER_KEY)
                 return res.status(StatusCodes.UNAUTHORIZED).json({error: "Unauthorized, the devs are missing something."});
@@ -83,9 +148,7 @@ export class Server {
                 return res.status(StatusCodes.NOT_FOUND).json({error: "Missing body"});
 
             try {
-                const userId = z.int({error: "Invalid UserId"}).positive({error: "UserId must be positive."}).parse(body.UserId);
-                // const amount = z.int({error: "Invalid Amount"}).positive({error: "Amount must be positive"}).nullable().parse(body.Amount ?? null);
-                // const dry = z.coerce.boolean().nullable().parse(body.dry ?? null);
+                const userId = UserIdSchema.parse(body.UserId);
 
                 const removedFromEligible = await removeUserIdFromEligible(userId, null);
                 const removedFromClaimData = await removeClaimData(userId, null);
@@ -109,7 +172,7 @@ export class Server {
             }
 
             const body = req.body;
-            const dry = body ? z.coerce.boolean().nullable().parse(body.dry ?? null) : null;
+            const dry = body ? DryFlagSchema.parse(body.dry ?? null) : null;
 
             try {
                 if (dry === true) {
@@ -143,7 +206,7 @@ export class Server {
             }
 
             const body = req.body;
-            const dry = body ? z.coerce.boolean().nullable().parse(body.dry ?? null) : null;
+            const dry = body ? DryFlagSchema.parse(body.dry ?? null) : null;
 
             try {
                 if (dry === true) {
@@ -398,9 +461,9 @@ export class Server {
                 return res.status(StatusCodes.NOT_FOUND).json({error: "Missing body"});
 
             try {
-                const userId = z.int({error: "Invalid UserId"}).positive({error: "UserId must be positive."}).parse(body.UserId);
-                const amount = z.int({error: "Invalid Amount"}).positive({error: "Amount must be positive"}).parse(body.Amount);
-                const dry = z.coerce.boolean().nullable().parse(body.dry ?? null);
+                const userId = UserIdSchema.parse(body.UserId);
+                const amount = AmountSchema.parse(body.Amount);
+                const dry = DryFlagSchema.parse(body.dry ?? null);
 
                 if (!Array.from((await codesByAmount).keys()).includes(amount)) {
                     console.log(`[Eligibility]: ${req.headers.authorization} tried to set_eligible but invalid amount ${amount}.`);
@@ -455,9 +518,9 @@ export class Server {
                 return res.status(StatusCodes.NOT_FOUND).json({error: "Missing body"});
 
             try {
-                const userId = z.int({error: "Invalid UserId"}).positive({error: "UserId must be positive."}).parse(body.UserId);
-                const amount = z.int({error: "Invalid Amount"}).positive({error: "Amount must be positive"}).parse(body.Amount);
-                const dry = z.coerce.boolean().nullable().parse(body.dry ?? null);
+                const userId = UserIdSchema.parse(body.UserId);
+                const amount = AmountSchema.parse(body.Amount);
+                const dry = DryFlagSchema.parse(body.dry ?? null);
 
                 if (!Array.from((await codesByAmount).keys()).includes(amount)) {
                     console.log(`[Eligibility]: ${req.headers.authorization} tried to set_eligible but invalid amount ${amount}.`);
@@ -530,6 +593,68 @@ export class Server {
             }
             return server;
         };
+
+        app.post('/server/:server/set-eligibility', async (req, res) => {
+            if (!config.BEARER_KEY)
+                return res.status(StatusCodes.UNAUTHORIZED).json({ error: "Unauthorized, the devs are missing something." });
+
+            if (req.headers.authorization !== `Bearer ${config.BEARER_KEY}`)
+                return res.status(StatusCodes.UNAUTHORIZED).json({ error: "Unauthorized" });
+
+            const server = resolveRewardServer(req, res);
+            if (!server) return;
+
+            const body = req.body;
+            if (!body)
+                return res.status(StatusCodes.NOT_FOUND).json({ error: "Missing body" });
+
+            try {
+                const userId = UserIdSchema.parse(body.UserId);
+                const amount = AmountSchema.parse(body.Amount);
+                const dry = DryFlagSchema.parse(body.dry ?? null);
+
+                const serverAmounts = Object.keys(server.codeTypes).map(Number);
+                if (!serverAmounts.includes(amount)) {
+                    console.log(`[${server.name} Eligibility]: ${req.headers.authorization} tried to set_eligible but invalid amount ${amount}.`);
+                    return res.status(StatusCodes.BAD_REQUEST).json({ error: "Invalid Amount" });
+                }
+
+                const eligibilities = await getServerUserEligibility(server, Number(userId));
+                if (eligibilities.length >= 1) {
+                    console.log(`[${server.name} Eligibility]: ${req.headers.authorization} Roblox user ${userId} already has an eligibility entry.`);
+                    return res.status(StatusCodes.BAD_REQUEST).json({ message: "One user cannot have more than 1 redeem code." });
+                }
+
+                // Check there's room in the pool for one more eligible user.
+                const eligibleCount = await countServerEligibleUsersByAmount(server, amount);
+                const allCodesMap = await (await import("../utils/codes")).readServerCodes(server);
+                const totalCodes = allCodesMap.get(amount)?.length ?? 0;
+                if (eligibleCount + 1 > totalCodes) {
+                    console.log(`[${server.name} Eligibility]: ${req.headers.authorization} tried to set_eligible but no code available for amount ${amount}.`);
+                    return res.status(StatusCodes.BAD_REQUEST).json({
+                        message: `Cannot set eligibility: Not enough codes available. There are ${totalCodes} total codes and ${eligibleCount} eligible users already.`
+                    });
+                }
+
+                const rand_code = await getServerRandomUnclaimedCode(server, amount);
+                if (!rand_code) {
+                    console.log(`[${server.name} Eligibility]: ${req.headers.authorization} tried to set_eligible but no code available for amount ${amount}.`);
+                    return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ message: "Abis woy kodenya." });
+                }
+
+                if (dry === true)
+                    return res.status(StatusCodes.OK).json({ message: "OK (dry-run)" });
+
+                await setServerUserEligible(server, userId, amount);
+                return res.status(StatusCodes.OK).json({ message: "OK" });
+
+            } catch (err: any) {
+                if (err instanceof z.ZodError) {
+                    return res.status(StatusCodes.BAD_REQUEST).json({ error: err.issues.map(issue => issue.message).join(' | ') });
+                }
+                return res.status(StatusCodes.BAD_REQUEST).json({ error: err?.message ?? String(err) });
+            }
+        });
 
         app.get('/server/:server/claim-list', async (req, res, next) => {
             if (req.headers.authorization !== `Bearer ${config.BEARER_KEY}`)
@@ -619,7 +744,7 @@ export class Server {
             if (!server) return;
 
             try {
-                const dry = req.body ? z.coerce.boolean().nullable().parse(req.body.dry ?? null) : null;
+                const dry = req.body ? DryFlagSchema.parse(req.body.dry ?? null) : null;
 
                 if (dry === true) {
                     const ServerClaimModel = getServerClaimModelPublic(server.name);
@@ -648,7 +773,7 @@ export class Server {
             if (!server) return;
 
             try {
-                const userId = z.int({ error: "Invalid UserId" }).positive({ error: "UserId must be positive." }).parse(req.body?.UserId);
+                const userId = UserIdSchema.parse(req.body?.UserId);
                 const removed = await removeServerClaimData(server, userId);
 
                 return res.status(StatusCodes.OK).json({
@@ -695,6 +820,15 @@ export class Server {
             } catch (err: any) {
                 return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ error: err?.message ?? String(err) });
             }
+        });
+
+        // Catch-all: any unmatched request (or one that fell through via next())
+        // gets redirected to ROOT_REDIRECT_URL when set, otherwise a plain 404.
+        app.use((_req, res) => {
+            if (config.ROOT_REDIRECT_URL) {
+                return res.redirect(StatusCodes.MOVED_TEMPORARILY, config.ROOT_REDIRECT_URL);
+            }
+            return res.status(StatusCodes.NOT_FOUND).type("text/plain").send("Not found");
         });
 
         app.listen(config.PORT, () => {

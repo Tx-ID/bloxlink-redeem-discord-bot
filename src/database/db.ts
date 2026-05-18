@@ -442,6 +442,74 @@ export function getServerClaimModelPublic(serverName: string): Model<IClaimUser>
     return getServerClaimModel(serverName);
 }
 
+// =============================================
+// Dynamic Per-Server Eligibility
+// =============================================
+// Mirrors the global EligibilityModel but keyed per reward server, so
+// servers with their own voucher pool (e.g. LAZADA) can be marked
+// eligible via a dedicated /server/:server/set-eligibility endpoint
+// without touching the default Eligibility collection.
+
+const serverEligibilityModels = new Map<string, Model<IEligibilityUser>>();
+
+function getServerEligibilityModel(serverName: string): Model<IEligibilityUser> {
+    const existing = serverEligibilityModels.get(serverName);
+    if (existing) return existing;
+
+    const schemaName = `${serverName}Eligibility`;
+
+    if (mongoose.modelNames().includes(schemaName)) {
+        const m = mongoose.model<IEligibilityUser>(schemaName);
+        serverEligibilityModels.set(serverName, m);
+        return m;
+    }
+
+    const schema = new Schema<IEligibilityUser>({
+        UserId: { type: Number, required: true, unique: true, index: true },
+        EligibleList: { type: [Number], default: [] },
+    });
+    const m = model<IEligibilityUser>(schemaName, schema);
+    serverEligibilityModels.set(serverName, m);
+    return m;
+}
+
+export function getServerEligibilityModelPublic(serverName: string): Model<IEligibilityUser> {
+    return getServerEligibilityModel(serverName);
+}
+
+export async function getServerUserEligibility(server: RewardServerConfig, userId: number): Promise<number[]> {
+    const M = getServerEligibilityModel(server.name);
+    const found = await M.findOne({ UserId: userId }).lean();
+    return found ? found.EligibleList : [];
+}
+
+export async function setServerUserEligible(server: RewardServerConfig, userId: number, amount: number): Promise<void> {
+    const M = getServerEligibilityModel(server.name);
+    await M.updateOne(
+        { UserId: userId },
+        { $addToSet: { EligibleList: amount } },
+        { upsert: true },
+    );
+}
+
+export async function countServerEligibleUsersByAmount(server: RewardServerConfig, amount: number): Promise<number> {
+    const M = getServerEligibilityModel(server.name);
+    return M.countDocuments({ EligibleList: amount });
+}
+
+export async function removeServerUserFromEligible(server: RewardServerConfig, userId: number, amounts: number[] | null): Promise<boolean> {
+    const M = getServerEligibilityModel(server.name);
+    if (amounts) {
+        const result = await M.updateOne(
+            { UserId: userId },
+            { $pullAll: { EligibleList: amounts } },
+        );
+        return result.matchedCount > 0;
+    }
+    const result = await M.deleteOne({ UserId: userId });
+    return result.deletedCount > 0;
+}
+
 /**
  * Add a claim record for a user in a specific reward server's collection.
  */

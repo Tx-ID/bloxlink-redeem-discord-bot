@@ -42,4 +42,13 @@ export default {
     PREVIEW_ALLOWED_USER_IDS: (process.env.PREVIEW_ALLOWED_USER_IDS ?? "").split(",").map(s => s.trim()).filter(Boolean),
 
     ROBLOX_OPEN_CLOUD_API_KEY: process.env.ROBLOX_OPEN_CLOUD_API_KEY ?? null,
+
+    /** Absolute URL to 302-redirect to on `GET /`. If empty, `/` returns 404. */
+    ROOT_REDIRECT_URL: process.env.ROOT_REDIRECT_URL ?? null,
+
+    // Consent-flow timeouts (LAZADA and any other requiresConsent server).
+    // CONSENT_TIMEOUT_MS: max wait for a single button-collector step (age, agree/disagree).
+    // HTML_OPEN_WAIT_MS:  max wait for the user to open the T&C link.
+    CONSENT_TIMEOUT_MS: z.coerce.number({ error: "Invalid type for: CONSENT_TIMEOUT_MS" }).int().positive().default(2 * 60 * 1000).parse(process.env.CONSENT_TIMEOUT_MS),
+    HTML_OPEN_WAIT_MS: z.coerce.number({ error: "Invalid type for: HTML_OPEN_WAIT_MS" }).int().positive().default(5 * 60 * 1000).parse(process.env.HTML_OPEN_WAIT_MS),
 };

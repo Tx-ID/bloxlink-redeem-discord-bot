@@ -6,6 +6,8 @@ export interface RewardServerConfig {
     name: string;
     /** Discord guild ID this config applies to */
     guildId: string;
+    /** Optional Discord channel ID — if set, /claim only triggers in this channel */
+    channelId?: string;
     /** Roblox badge ID the user must own to claim */
     badgeId: number;
     /** Folder containing the CSV code files for this server */
@@ -18,6 +20,16 @@ export interface RewardServerConfig {
     eventTitle: string;
     /** Message shown when verification fails */
     verificationMessage: string;
+    /** If true, require the multi-step DM consent flow (age + T&C agree) before claim */
+    requiresConsent?: boolean;
+    /** Name of the static doc under /docs/<name> to link in the T&C step (no .html) */
+    termsDocName?: string;
+    /**
+     * If true, this server gates claims on its own server-scoped eligibility
+     * collection (set via /server/:server/set-eligibility) instead of the
+     * Roblox badge check.
+     */
+    usesEligibility?: boolean;
 }
 
 /** Map of guildId → RewardServerConfig (for fast lookup in commands) */
@@ -34,7 +46,19 @@ const rewardServersByName = new Map<string, RewardServerConfig>();
  * Hardcoded server names that are always loaded from their
  * own {NAME}_* env vars, independent of REWARD_SERVERS.
  */
-const HARDCODED_SERVERS = ["PELANGI"] as const;
+const HARDCODED_SERVERS = ["PELANGI", "LAZADA"] as const;
+
+/**
+ * Per-server static defaults that aren't reasonable to express as env-var fallbacks.
+ * Currently only the LAZADA server needs the consent-flow flag + terms doc.
+ */
+const HARDCODED_SERVER_DEFAULTS: Record<string, Partial<RewardServerConfig>> = {
+    LAZADA: {
+        requiresConsent: true,
+        termsDocName: "lazadaterms",
+        usesEligibility: true,
+    },
+};
 
 // =============================================
 // Shared loader
@@ -43,6 +67,7 @@ const HARDCODED_SERVERS = ["PELANGI"] as const;
 function tryRegisterServer(name: string, source: "hardcoded" | "dynamic"): void {
     const prefix = `${name}_`;
     const guildId = process.env[`${prefix}GUILD_ID`];
+    const channelId = process.env[`${prefix}CHANNEL_ID`];
     const badgeIdStr = process.env[`${prefix}BADGE_ID`];
     const codesFoldername = process.env[`${prefix}CODES_FOLDERNAME`] || `${name.toLowerCase()}_codes`;
     const codeTypesStr = process.env[`${prefix}CODE_TYPES`];
@@ -50,6 +75,7 @@ function tryRegisterServer(name: string, source: "hardcoded" | "dynamic"): void 
     const eventTitle = process.env[`${prefix}EVENT_TITLE`] ?? `${name} Event`;
     const verificationMessage = process.env[`${prefix}VERIFICATION_MESSAGE`]
         ?? "Maaf anda belum memenuhi syarat. Harap hubungkan akun Roblox anda ke Bloxlink atau Chitose untuk verifikasi.";
+    const defaults = HARDCODED_SERVER_DEFAULTS[name] ?? {};
 
     if (!guildId) {
         if (source === "dynamic") {
@@ -58,15 +84,24 @@ function tryRegisterServer(name: string, source: "hardcoded" | "dynamic"): void 
         // Silently skip hardcoded servers with no guild ID (not configured yet)
         return;
     }
-    if (!badgeIdStr) {
-        console.warn(`[RewardServers]: Skipping "${name}" — missing ${prefix}BADGE_ID`);
-        return;
-    }
 
-    const badgeId = Number(badgeIdStr);
-    if (isNaN(badgeId)) {
-        console.warn(`[RewardServers]: Skipping "${name}" — invalid ${prefix}BADGE_ID`);
-        return;
+    // Eligibility-gated servers (e.g. LAZADA) don't need a badge ID; everyone
+    // else does. Default to 0 when omitted so the field always has a value.
+    const usesEligibility = defaults.usesEligibility === true;
+    let badgeId = 0;
+    if (!usesEligibility) {
+        if (!badgeIdStr) {
+            console.warn(`[RewardServers]: Skipping "${name}" — missing ${prefix}BADGE_ID`);
+            return;
+        }
+        badgeId = Number(badgeIdStr);
+        if (isNaN(badgeId)) {
+            console.warn(`[RewardServers]: Skipping "${name}" — invalid ${prefix}BADGE_ID`);
+            return;
+        }
+    } else if (badgeIdStr) {
+        const parsed = Number(badgeIdStr);
+        if (!isNaN(parsed)) badgeId = parsed;
     }
 
     let codeTypes: Record<number, string> = {};
@@ -81,12 +116,14 @@ function tryRegisterServer(name: string, source: "hardcoded" | "dynamic"): void 
     const config: RewardServerConfig = {
         name,
         guildId,
+        ...(channelId ? { channelId } : {}),
         badgeId,
         codesFoldername,
         codeTypes,
         codesExpiry,
         eventTitle,
         verificationMessage,
+        ...defaults,
     };
 
     rewardServersByGuild.set(guildId, config);
