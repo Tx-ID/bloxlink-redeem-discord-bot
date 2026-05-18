@@ -21,6 +21,8 @@ export const ClaimReason = {
         "Maaf, kode reward sedang tidak tersedia. Silakan hubungi admin.",
     NotEligible:
         "Maaf, kamu belum terdaftar sebagai eligible untuk claim reward ini. Silakan hubungi admin.",
+    NothingToClaim:
+        "Nothing to claim!",
     RobloxNotVerifiable:
         "Maaf, akun Roblox anda tidak dapat diverifikasi.",
     ProcessError:

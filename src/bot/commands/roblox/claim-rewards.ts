@@ -529,6 +529,16 @@ async function executeConsentServerInner(
                 .catch(() => interaction.editReply({ content: DmStatus.Failed }).catch(() => {}));
             return;
         }
+
+        // No existing claim — verify the user has a path to a code (eligibility for
+        // eligibility-gated servers) before walking them through the consent flow.
+        if (server.usesEligibility) {
+            const eligibilities = await getServerUserEligibility(server, robloxId);
+            if (eligibilities.length === 0) {
+                interaction.editReply({ content: ClaimReason.NothingToClaim }).catch(() => {});
+                return;
+            }
+        }
     }
 
     // First-time claim: run the DM consent flow.
