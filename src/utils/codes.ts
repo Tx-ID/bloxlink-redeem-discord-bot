@@ -68,17 +68,85 @@ async function loadServerCodes(server: RewardServerConfig): Promise<Map<number, 
 
     if (amounts.length === 0) return result;
 
+    // Lazada's {amount}.csv files use the semicolon-delimited format with a
+    // header row, where the redeem code is the `displayCode` column. Every
+    // other server uses plain one-code-per-line files.
+    const useDelimited = server.name === "LAZADA";
+
     await Promise.all(amounts.map(async (n) => {
+        const file = `${server.codesFoldername}/${String(n)}.csv`;
         try {
-            const list = await readLines(`${server.codesFoldername}/${String(n)}.csv`);
+            const list = useDelimited
+                ? (await readDelimitedCodeRows(file)).map(row => row.displayCode)
+                : await readLines(file);
             result.set(n, list);
         } catch (err) {
-            console.warn(`[Codes:${server.name}]: Could not read ${server.codesFoldername}/${n}.csv`, err);
+            console.warn(`[Codes:${server.name}]: Could not read ${file}`, err);
             result.set(n, []);
         }
     }));
 
     return result;
+}
+
+// =============================================
+// Delimited (header) CSV support
+// =============================================
+// Some events (e.g. Lazada) ship their {amount}.csv files as a semicolon-
+// delimited CSV with a header row instead of one raw code per line:
+//   displayCode;validFrom;validTo;status;discountAmount;Minimum Spend;usageLimitPerCode
+// The redeem code is the `displayCode` column; the file is still keyed by the
+// amount in its filename, so the rest of the system works unchanged.
+
+/** One parsed row of a delimited voucher CSV. */
+export interface DelimitedCodeRow {
+    displayCode: string;
+    validFrom: string;
+    validTo: string;
+    status: string;
+    discountAmount: number;
+    minimumSpend: string;
+    usageLimitPerCode: string;
+}
+
+/** Parse a possibly currency-formatted amount ("50000", "50000.00", "Rp 50.000") to a number. */
+function parseAmount(raw: string): number {
+    const trimmed = raw.trim();
+    const direct = Number(trimmed);
+    if (trimmed !== "" && Number.isFinite(direct)) return direct;
+    const digits = trimmed.replace(/[^\d]/g, "");
+    return digits ? Number(digits) : 0;
+}
+
+/**
+ * Parse a semicolon-delimited voucher CSV that has a header row into structured
+ * rows. Rows without a `displayCode` are skipped.
+ */
+export function readDelimitedCodeRows(filename: string): Promise<DelimitedCodeRow[]> {
+    const rows: DelimitedCodeRow[] = [];
+    return new Promise((resolve, reject) => {
+        fs.createReadStream(filename, { encoding: "utf-8" })
+            .pipe(csvParser({
+                separator: ";",
+                // Strip a leading UTF-8 BOM off the first header and trim names.
+                mapHeaders: ({ header }) => header.replace(/^\uFEFF/, "").trim(),
+            }))
+            .on("data", (row: Record<string, string>) => {
+                const displayCode = (row.displayCode ?? "").trim();
+                if (!displayCode) return;
+                rows.push({
+                    displayCode,
+                    validFrom: (row.validFrom ?? "").trim(),
+                    validTo: (row.validTo ?? "").trim(),
+                    status: (row.status ?? "").trim(),
+                    discountAmount: parseAmount(row.discountAmount ?? ""),
+                    minimumSpend: (row["Minimum Spend"] ?? "").trim(),
+                    usageLimitPerCode: (row.usageLimitPerCode ?? "").trim(),
+                });
+            })
+            .on("end", () => resolve(rows))
+            .on("error", reject);
+    });
 }
 
 /**

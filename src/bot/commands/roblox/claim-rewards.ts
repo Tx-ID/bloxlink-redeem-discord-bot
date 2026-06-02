@@ -55,6 +55,38 @@ function buildRewardDmPayload(server: RewardServerConfig, redeemCode: string, re
 }
 
 /**
+ * Barebone reward DM for the Lazada event. Intentionally minimal for now —
+ * just shows the voucher code in an embed (no redeem URL/button).
+ * TODO(lazada): flesh out with the real Lazada redemption instructions/branding.
+ */
+function buildLazadaRewardDmPayload(server: RewardServerConfig, redeemCode: string, rewardType: string, opts: { preview?: boolean } = {}): MessagePayload | MessageCreateOptions {
+    const embed: APIEmbed = {
+        title: opts.preview ? `[PREVIEW] ${server.eventTitle}` : server.eventTitle,
+        color: 0xFFD700,
+        description: [
+            "# 🎉 Selamat!",
+            `## Kamu berhasil mendapatkan __${rewardType}__ dari event spesial ${server.eventTitle}! 🎊`,
+            "",
+            `🎟️ Kode Voucher: \`${redeemCode}\``,
+        ].join('\n'),
+        footer: { text: `Kode akan hangus apabila tidak ditukarkan sebelum ${server.codesExpiry}.` },
+    };
+
+    return { tts: false, embeds: [embed] };
+}
+
+/**
+ * Pick the right reward DM builder for a server: Lazada gets its own barebone
+ * payload, everyone else uses the standard GoPay payload.
+ */
+function buildServerRewardDmPayload(server: RewardServerConfig, redeemCode: string, rewardType: string, opts: { preview?: boolean } = {}): MessagePayload | MessageCreateOptions {
+    if (server.name === "LAZADA") {
+        return buildLazadaRewardDmPayload(server, redeemCode, rewardType, opts);
+    }
+    return buildRewardDmPayload(server, redeemCode, rewardType, opts);
+}
+
+/**
  * Resolve (or assign) a Roblox/Discord claim for a reward server.
  * Returns the redeem info on success, or an error message string for the user.
  */
@@ -524,7 +556,7 @@ async function executeConsentServerInner(
                 interaction.editReply({ content: result.reason }).catch(() => {});
                 return;
             }
-            await interaction.user.send(buildRewardDmPayload(server, result.code, result.rewardType))
+            await interaction.user.send(buildServerRewardDmPayload(server, result.code, result.rewardType))
                 .then(() => interaction.editReply({ content: DmStatus.Success }).catch(() => {}))
                 .catch(() => interaction.editReply({ content: DmStatus.Failed }).catch(() => {}));
             return;
@@ -660,7 +692,7 @@ async function executeConsentServerInner(
         // Skip DB + eligibility + code-pool entirely; DM a [PREVIEW] reward.
         const reward_type = Object.values(server.codeTypes)[0] ?? "Reward";
         await interaction.user.send(
-            buildRewardDmPayload(server, "TESTCODE-XXXX-0000", reward_type, { preview: true })
+            buildServerRewardDmPayload(server, "TESTCODE-XXXX-0000", reward_type, { preview: true })
         ).catch(() => {});
         return;
     }
@@ -673,7 +705,7 @@ async function executeConsentServerInner(
         return;
     }
 
-    await interaction.user.send(buildRewardDmPayload(server, result.code, result.rewardType)).catch(() => {});
+    await interaction.user.send(buildServerRewardDmPayload(server, result.code, result.rewardType)).catch(() => {});
 }
 
 async function execute(interaction: Interaction) {

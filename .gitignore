@@ -136,5 +136,13 @@ dist
 .pnp.*
 
 codes/
+
+# Lazada voucher pool — keep real codes out of git, but track the example
+# so the expected CSV format stays documented.
+lazada_codes/*.csv
+!lazada_codes/*.example.csv
+
 db.json
 dbs/
+CLAUDE.md
+todo.md
