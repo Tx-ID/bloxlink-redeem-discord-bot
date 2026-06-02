@@ -33,6 +33,7 @@
     "dev": "tsx src/index.ts",
     "dev:server": "tsx src/index.ts --server-only",
     "migrate": "tsx src/database/migrations/mongo.ts",
-    "refresh": "node dist/index.js --gen-commands"
+    "refresh": "node dist/index.js --gen-commands",
+    "clear-guild-commands": "tsx scripts/clear-guild-commands.ts"
   }
 }
