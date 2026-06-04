@@ -62,24 +62,30 @@ function buildRewardDmPayload(server: RewardServerConfig, redeemCode: string, re
  */
 function buildLazadaRewardDmPayload(_server: RewardServerConfig, redeemCode: string, _rewardType: string, opts: { preview?: boolean } = {}): MessagePayload | MessageCreateOptions {
     const lines = [
-        "# 🎉 Selamat!",
-        "## Kamu berhasil mendapatkan __Voucher Diskon Eksklusif__ dari kolaborasi Indo Voice x Lazada 6.6 Super WOW Sale! 🎊",
+        "**🎉 Selamat!**",
+        "Kamu berhasil mendapatkan Voucher Diskon Eksklusif dari kolaborasi Indo Voice x Lazada 6.6 Super WOW Sale! 🎊",
         "",
         `🎟️ Kode Voucher: \`${redeemCode}\``,
         "📲 Tukarkan langsung di aplikasi Lazada!",
         "",
-        `🔓 Cara Menukarkan Kode Voucher:\nStep 1: Buka aplikasi Lazada\nStep 2: Pilih barang incaranmu, masukkan ke troli, dan klik "Checkout"\nStep 3: Pada halaman Checkout, scroll ke bawah dan cari bagian "Voucher Lazada"\nStep 4: Masukkan kode: \`${redeemCode}\` pada kolom "Masukkan Kode Voucher" lalu klik "Gunakan"\nStep 5: Selesai! Diskon akan langsung memotong total belanjamu — silakan lanjutkan ke pembayaran`,
+        "**🔓 Cara Menukarkan Kode Voucher:**",
+        "- Step 1: Buka aplikasi Lazada",
+        "- Step 2: Pilih barang incaranmu, masukkan ke troli, dan klik \"Checkout\"",
+        "- Step 3: Pada halaman Checkout, scroll ke bawah dan cari bagian \"Voucher Lazada\"",
+        `- Step 4: Masukkan kode: \`${redeemCode}\` pada kolom "Masukkan Kode Voucher" lalu klik "Gunakan"`,
+        "- Step 5: Selesai! Diskon akan langsung memotong total belanjamu — silakan lanjutkan ke pembayaran",
         "",
         `⚠️ Perlu diingat kode voucher hanya dapat diclaim satu kali. Oleh karena itu, jangan berikan kode ini kesiapapun!`,
         "",
         "💡 Gunakan vouchermu untuk borong wishlist lebih hemat di puncak promo Lazada 6.6!",
+        "",
+        "***Kode voucher dapat ditukarkan pada 5 Juni 2026 pukul 20.00 WIB dan akan hangus apabila tidak ditukarkan sampai 8 Juni 2026***",
     ];
 
     const embed: APIEmbed = {
         title: opts.preview ? "[PREVIEW] Indo Voice x Lazada 6.6 Super WOW Sale" : "Indo Voice x Lazada 6.6 Super WOW Sale",
         color: 0xFFD700,
         description: lines.join('\n'),
-        footer: { text: "Kode voucher akan hangus apabila tidak ditukarkan sampai 8 Juni 2026" },
     };
 
     return { tts: false, embeds: [embed] };
